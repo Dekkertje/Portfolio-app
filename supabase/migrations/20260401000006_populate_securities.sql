@@ -1,8 +1,6 @@
 -- Populate securities database with common stocks and ETFs
 -- This provides fallback data for fuzzy matching
-
--- Enable pg_trgm extension for fuzzy text matching
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
+-- Note: pg_trgm extension is already enabled in migration 0005
 
 -- US Tech Giants
 INSERT INTO securities (isin, name, alternative_names, ticker_symbol, yahoo_symbol, exchange, currency, security_type, sector, region) VALUES

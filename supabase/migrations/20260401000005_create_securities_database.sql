@@ -1,6 +1,9 @@
 -- Create securities reference database for stocks and ETFs
 -- This acts as a fallback when exact product name matching fails
 
+-- Enable pg_trgm extension for fuzzy text matching (must be done first)
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 CREATE TABLE IF NOT EXISTS securities (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   isin TEXT UNIQUE NOT NULL,
