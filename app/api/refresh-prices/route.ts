@@ -53,12 +53,13 @@ function mapProductToSymbol(product: string): StockInfo | null {
     "ASR NEDERLAND NV": { symbol: "ASRNL.AS", yahooSymbol: "ASRNL.AS", currency: "EUR" },
     "FASTNED BV": { symbol: "FAST.AS", yahooSymbol: "FAST.AS", currency: "EUR" },
 
-    // ETFs - Mixed exchanges (will auto-convert pence to EUR if needed)
-    "INVESCO EQQQ NASDAQ-100 UCITS ETF": { symbol: "EQQQ.L", yahooSymbol: "EQQQ.L", currency: "EUR" },
-    "INVESCO EQQQ NASDAQ-100 UCITS ETF DIST": { symbol: "EQQQ.L", yahooSymbol: "EQQQ.L", currency: "EUR" },
+    // ETFs - Amsterdam exchange (EUR) is more reliable than London (GBp)
+    // Use .AS (Amsterdam) instead of .L (London) to avoid pence conversion issues
+    "INVESCO EQQQ NASDAQ-100 UCITS ETF": { symbol: "EQQQ.AS", yahooSymbol: "EQQQ.AS", currency: "EUR" },
+    "INVESCO EQQQ NASDAQ-100 UCITS ETF DIST": { symbol: "EQQQ.AS", yahooSymbol: "EQQQ.AS", currency: "EUR" },
     "VANGUARD S&P 500 UCITS ETF": { symbol: "VUSA.AS", yahooSymbol: "VUSA.AS", currency: "EUR" },
     "VANGUARD S&P 500 UCITS ETF USD DIS": { symbol: "VUSA.AS", yahooSymbol: "VUSA.AS", currency: "EUR" },
-    "ISHARES CORE S&P 500 UCITS ETF": { symbol: "CSPX.L", yahooSymbol: "CSPX.L", currency: "EUR" },
+    "ISHARES CORE S&P 500 UCITS ETF": { symbol: "CSPX.AS", yahooSymbol: "CSPX.AS", currency: "EUR" },
   }
 
   // Try exact match first
@@ -240,12 +241,13 @@ export async function POST() {
           .eq("price_date", priceDate)
 
         // Insert new price with previous close for daily P&L calculation
+        // Round to 4 decimal places for better precision (better than 2 decimals)
         const { error: insertError } = await supabase.from("prices").insert({
           product: item.product,
           isin: item.isin || null,
-          price: finalPrice,
+          price: Math.round(finalPrice * 10000) / 10000,
           price_date: priceDate,
-          previous_close: actualPreviousClose,
+          previous_close: Math.round(actualPreviousClose * 10000) / 10000,
         })
 
         if (insertError) {
