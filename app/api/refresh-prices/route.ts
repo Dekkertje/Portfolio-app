@@ -7,6 +7,99 @@ type StockInfo = {
   currency: "USD" | "EUR"
 }
 
+// Simple string similarity using Levenshtein-like approach
+function similarity(s1: string, s2: string): number {
+  const longer = s1.length > s2.length ? s1 : s2
+  const shorter = s1.length > s2.length ? s2 : s1
+
+  if (longer.length === 0) return 1.0
+
+  // Check for exact substring match
+  if (longer.includes(shorter)) return 0.8
+
+  // Calculate edit distance
+  const editDistance = levenshteinDistance(s1, s2)
+  return (longer.length - editDistance) / longer.length
+}
+
+function levenshteinDistance(s1: string, s2: string): number {
+  const costs: number[] = []
+  for (let i = 0; i <= s1.length; i++) {
+    let lastValue = i
+    for (let j = 0; j <= s2.length; j++) {
+      if (i === 0) {
+        costs[j] = j
+      } else if (j > 0) {
+        let newValue = costs[j - 1]
+        if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
+          newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1
+        }
+        costs[j - 1] = lastValue
+        lastValue = newValue
+      }
+    }
+    if (i > 0) costs[s2.length] = lastValue
+  }
+  return costs[s2.length]
+}
+
+async function findSecurityByFuzzyMatch(product: string, isin?: string): Promise<StockInfo | null> {
+  try {
+    // First try exact ISIN match if available
+    if (isin) {
+      const { data } = await supabase
+        .from("securities")
+        .select("*")
+        .eq("isin", isin)
+        .single()
+
+      if (data) {
+        console.log(`   🎯 Exact ISIN match: ${data.name} (${data.yahoo_symbol})`)
+        return {
+          symbol: data.ticker_symbol,
+          yahooSymbol: data.yahoo_symbol,
+          currency: data.currency as "USD" | "EUR"
+        }
+      }
+    }
+
+    // Try fuzzy matching on product name using trigram similarity
+    const { data: matches } = await supabase
+      .from("securities")
+      .select("*")
+      .or(`name.ilike.%${product}%,alternative_names.cs.{${product}}`)
+      .limit(5)
+
+    if (matches && matches.length > 0) {
+      // Calculate similarity scores and pick the best match
+      const scoredMatches = matches.map(m => ({
+        ...m,
+        score: Math.max(
+          similarity(product.toUpperCase(), m.name.toUpperCase()),
+          ...((m.alternative_names || []).map((alt: string) =>
+            similarity(product.toUpperCase(), alt.toUpperCase())
+          ))
+        )
+      })).sort((a, b) => b.score - a.score)
+
+      const bestMatch = scoredMatches[0]
+      if (bestMatch.score > 0.3) {
+        console.log(`   🔍 Fuzzy match (${(bestMatch.score * 100).toFixed(0)}%): ${bestMatch.name} → ${bestMatch.yahoo_symbol}`)
+        return {
+          symbol: bestMatch.ticker_symbol,
+          yahooSymbol: bestMatch.yahoo_symbol,
+          currency: bestMatch.currency as "USD" | "EUR"
+        }
+      }
+    }
+
+    return null
+  } catch (error) {
+    console.error("Fuzzy match error:", error)
+    return null
+  }
+}
+
 function mapProductToSymbol(product: string): StockInfo | null {
   const upperProduct = product.toUpperCase()
 
@@ -53,13 +146,13 @@ function mapProductToSymbol(product: string): StockInfo | null {
     "ASR NEDERLAND NV": { symbol: "ASRNL.AS", yahooSymbol: "ASRNL.AS", currency: "EUR" },
     "FASTNED BV": { symbol: "FAST.AS", yahooSymbol: "FAST.AS", currency: "EUR" },
 
-    // ETFs - Amsterdam exchange (EUR) is more reliable than London (GBp)
-    // Use .AS (Amsterdam) instead of .L (London) to avoid pence conversion issues
-    "INVESCO EQQQ NASDAQ-100 UCITS ETF": { symbol: "EQQQ.AS", yahooSymbol: "EQQQ.AS", currency: "EUR" },
-    "INVESCO EQQQ NASDAQ-100 UCITS ETF DIST": { symbol: "EQQQ.AS", yahooSymbol: "EQQQ.AS", currency: "EUR" },
+    // ETFs - Use European exchanges that trade in EUR (not GBp pence)
+    // .DE (Xetra), .PA (Paris), .MI (Milan) are better than .L (London) which uses pence
+    "INVESCO EQQQ NASDAQ-100 UCITS ETF": { symbol: "EQQQ.DE", yahooSymbol: "EQQQ.DE", currency: "EUR" },
+    "INVESCO EQQQ NASDAQ-100 UCITS ETF DIST": { symbol: "EQQQ.DE", yahooSymbol: "EQQQ.DE", currency: "EUR" },
     "VANGUARD S&P 500 UCITS ETF": { symbol: "VUSA.AS", yahooSymbol: "VUSA.AS", currency: "EUR" },
     "VANGUARD S&P 500 UCITS ETF USD DIS": { symbol: "VUSA.AS", yahooSymbol: "VUSA.AS", currency: "EUR" },
-    "ISHARES CORE S&P 500 UCITS ETF": { symbol: "CSPX.AS", yahooSymbol: "CSPX.AS", currency: "EUR" },
+    "ISHARES CORE S&P 500 UCITS ETF": { symbol: "CSPX.DE", yahooSymbol: "CSPX.DE", currency: "EUR" },
   }
 
   // Try exact match first
@@ -112,9 +205,17 @@ export async function POST() {
     const errors: string[] = []
 
     for (const item of uniqueProducts) {
-      const stockInfo = mapProductToSymbol(item.product)
+      // Try hardcoded mapping first
+      let stockInfo = mapProductToSymbol(item.product)
+
+      // If not found, try fuzzy matching from securities database
       if (!stockInfo) {
-        const msg = `⚠️  No symbol mapping for: ${item.product}`
+        console.log(`   ⚠️  No exact mapping for: ${item.product}, trying fuzzy match...`)
+        stockInfo = await findSecurityByFuzzyMatch(item.product, item.isin)
+      }
+
+      if (!stockInfo) {
+        const msg = `⚠️  No symbol mapping found for: ${item.product} (ISIN: ${item.isin || 'N/A'})`
         console.log(msg)
         errors.push(msg)
         skipped++
