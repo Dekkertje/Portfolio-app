@@ -29,6 +29,15 @@ CREATE INDEX idx_securities_type ON securities(security_type);
 -- Enable full-text search on name and alternative names
 CREATE INDEX idx_securities_name_trgm ON securities USING gin (name gin_trgm_ops);
 
+-- Create function for updating updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Create trigger for updated_at
 CREATE TRIGGER update_securities_updated_at
   BEFORE UPDATE ON securities
