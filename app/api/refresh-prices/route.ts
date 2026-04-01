@@ -248,6 +248,7 @@ export async function POST() {
           price: Math.round(finalPrice * 10000) / 10000,
           price_date: priceDate,
           previous_close: Math.round(actualPreviousClose * 10000) / 10000,
+          source: 'yahoo_finance',
         })
 
         if (insertError) {
