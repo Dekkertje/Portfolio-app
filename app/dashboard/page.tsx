@@ -404,13 +404,13 @@ export default function DashboardPage() {
 
     const totalDailyPnL = positions.reduce((sum, p) => {
       const hasPreviousClose = p.dayChange !== undefined && p.previousClose !== undefined
-      const dailyChange = hasPreviousClose ? (p.dayChange * p.quantity) : 0
+      const dailyChange = hasPreviousClose ? (p.dayChange! * p.quantity) : 0
 
       if (hasPreviousClose) {
         positionsWithPreviousClose++
         // Log ALL positions with previous close data - comparing to DEGIRO
         // eslint-disable-next-line no-console
-        console.log(`💵 ${p.product}: qty=${p.quantity}, current=€${p.currentPrice.toFixed(2)}, prev=€${p.previousClose.toFixed(2)}, change=€${p.dayChange.toFixed(2)}, total=€${dailyChange.toFixed(2)}`)
+        console.log(`💵 ${p.product}: qty=${p.quantity}, current=€${p.currentPrice.toFixed(2)}, prev=€${p.previousClose!.toFixed(2)}, change=€${p.dayChange!.toFixed(2)}, total=€${dailyChange.toFixed(2)}`)
 
         // Calculate what previous_close SHOULD be based on DEGIRO data
         // For debugging: if we know DEGIRO's W/V, what would previous_close need to be?

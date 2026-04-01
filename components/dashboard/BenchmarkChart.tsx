@@ -42,7 +42,7 @@ export function BenchmarkChart({ data, benchmarkType }: BenchmarkChartProps) {
             borderRadius: '8px',
             fontSize: '12px'
           }}
-          formatter={(value: number) => `${value.toFixed(2)}%`}
+          formatter={(value) => `${Number(value).toFixed(2)}%`}
         />
         <Legend
           wrapperStyle={{ fontSize: '12px' }}

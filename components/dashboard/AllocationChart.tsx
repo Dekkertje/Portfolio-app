@@ -51,11 +51,11 @@ export function AllocationChart({ data }: AllocationChartProps) {
             ))}
           </Pie>
           <Tooltip
-            formatter={(value: number) =>
+            formatter={(value) =>
               new Intl.NumberFormat("nl-NL", {
                 style: "currency",
                 currency: "EUR",
-              }).format(value)
+              }).format(Number(value))
             }
           />
         </PieChart>

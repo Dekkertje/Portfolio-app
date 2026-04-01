@@ -61,11 +61,11 @@ export function PerformanceChart({ data }: PerformanceChartProps) {
               borderRadius: "8px",
               padding: "12px",
             }}
-            formatter={(value: number) =>
+            formatter={(value) =>
               new Intl.NumberFormat("nl-NL", {
                 style: "currency",
                 currency: "EUR",
-              }).format(value)
+              }).format(Number(value))
             }
           />
           <Area
