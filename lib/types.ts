@@ -55,9 +55,12 @@ export type Position = {
   previousClose?: number
   dayChange?: number
   dayChangePercent?: number
+  dayChangeValue?: number // Total € change for this position today
   dividendYield?: number
   annualDividend?: number
+  totalDividendsReceived?: number // Total dividends received for this position
   nextDividendDate?: string
+  nextEarningsDate?: string // Next earnings announcement date
 }
 
 // Portfolio Snapshots for historical tracking

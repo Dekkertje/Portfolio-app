@@ -12,6 +12,11 @@ type Position = {
   totalFees: number
   realizedPnL: number
   isETF: boolean
+  dayChangeValue?: number
+  totalDividendsReceived?: number
+  nextEarningsDate?: string
+  annualDividend?: number
+  dividendYield?: number
 }
 
 type PositionsTableProps = {
@@ -173,6 +178,16 @@ export function PositionsTable({ positions }: PositionsTableProps) {
                   <SortIcon field="pnl" />
                 </div>
               </th>
+              <th
+                className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600"
+              >
+                Dividenden
+              </th>
+              <th
+                className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600"
+              >
+                Earnings
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 bg-white">
@@ -245,6 +260,41 @@ export function PositionsTable({ positions }: PositionsTableProps) {
                         )}
                       </div>
                     </div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex flex-col items-end gap-1">
+                      {position.totalDividendsReceived && position.totalDividendsReceived > 0 ? (
+                        <>
+                          <div className="text-sm font-medium text-green-600">
+                            {formatCurrency(position.totalDividendsReceived)}
+                          </div>
+                          {position.dividendYield && position.dividendYield > 0 && (
+                            <div className="text-xs text-slate-500">
+                              Yield: {position.dividendYield.toFixed(2)}%
+                            </div>
+                          )}
+                        </>
+                      ) : position.annualDividend && position.annualDividend > 0 ? (
+                        <div className="text-xs text-slate-400">
+                          €{position.annualDividend.toFixed(2)}/jr
+                        </div>
+                      ) : (
+                        <div className="text-xs text-slate-300">-</div>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    {position.nextEarningsDate ? (
+                      <div className="text-xs text-slate-600">
+                        {new Date(position.nextEarningsDate).toLocaleDateString('nl-NL', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric'
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-300">-</div>
+                    )}
                   </td>
                 </tr>
               )

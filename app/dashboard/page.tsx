@@ -65,10 +65,45 @@ export default function DashboardPage() {
         .select("*")
         .order("price_date", { ascending: false })
 
+      // Fetch securities data for earnings dates and dividend info
+      const { data: securities } = await supabase
+        .from("securities")
+        .select("isin, next_earnings_date, annual_dividend, dividend_frequency")
+
+      // Fetch total dividends received per position
+      const { data: dividendData } = await supabase
+        .from("transactions")
+        .select("product, isin, total_eur")
+        .eq("portfolio_id", portfolio.id)
+        .ilike("transaction_type", "%dividend%")
+
       if (txError || !transactions) {
         showToast("Fout bij laden van transacties", "error")
         setLoading(false)
         return
+      }
+
+      // Build securities map by ISIN
+      const securitiesMap: Record<string, { nextEarningsDate?: string, annualDividend?: number, dividendFrequency?: string }> = {}
+      if (securities) {
+        for (const sec of securities) {
+          if (sec.isin) {
+            securitiesMap[sec.isin] = {
+              nextEarningsDate: sec.next_earnings_date || undefined,
+              annualDividend: sec.annual_dividend || undefined,
+              dividendFrequency: sec.dividend_frequency || undefined
+            }
+          }
+        }
+      }
+
+      // Build dividends received map
+      const dividendsReceivedMap: Record<string, number> = {}
+      if (dividendData) {
+        for (const div of dividendData) {
+          const key = `${div.product}__${div.isin || ""}`
+          dividendsReceivedMap[key] = (dividendsReceivedMap[key] || 0) + Math.abs(div.total_eur || 0)
+        }
       }
 
       const latestPriceMap: Record<string, Price> = {}
@@ -187,9 +222,14 @@ export default function DashboardPage() {
           const previousClose = priceData?.previous_close ? Number(priceData.previous_close) : undefined
           const dayChange = previousClose ? currentPrice - previousClose : undefined
           const dayChangePercent = (previousClose && dayChange) ? (dayChange / previousClose) * 100 : undefined
+          const dayChangeValue = dayChange ? dayChange * p.quantity : undefined
 
           // Get sector
           const sector = getSector(p.product, p.isin)
+
+          // Get earnings and dividend data from securities
+          const securityData = p.isin ? securitiesMap[p.isin] : undefined
+          const totalDividendsReceived = dividendsReceivedMap[key] || 0
 
           return {
             product: p.product,
@@ -206,6 +246,13 @@ export default function DashboardPage() {
             previousClose,
             dayChange,
             dayChangePercent,
+            dayChangeValue,
+            annualDividend: securityData?.annualDividend,
+            dividendYield: securityData?.annualDividend && currentPrice > 0
+              ? (securityData.annualDividend / currentPrice) * 100
+              : undefined,
+            totalDividendsReceived,
+            nextEarningsDate: securityData?.nextEarningsDate,
           }
         })
         .filter(Boolean) as Position[]
