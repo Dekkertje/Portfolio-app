@@ -5,26 +5,26 @@
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 CREATE TABLE IF NOT EXISTS securities (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  isin TEXT UNIQUE NOT NULL,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  isin TEXT UNIQUE,
   name TEXT NOT NULL,
-  alternative_names TEXT[], -- Array of alternative names for fuzzy matching
-  ticker_symbol TEXT NOT NULL,
-  yahoo_symbol TEXT NOT NULL, -- Yahoo Finance specific symbol (e.g., AAPL, ASML.AS)
-  exchange TEXT NOT NULL, -- e.g., 'NASDAQ', 'XETRA', 'EURONEXT'
-  currency TEXT NOT NULL, -- 'USD' or 'EUR'
-  security_type TEXT NOT NULL, -- 'STOCK' or 'ETF'
-  sector TEXT, -- For stocks: 'Technology', 'Healthcare', etc.
-  region TEXT, -- 'US', 'Europe', 'Asia', etc.
+  alternative_names TEXT[] DEFAULT '{}',
+  ticker_symbol TEXT,
+  yahoo_symbol TEXT,
+  exchange TEXT,
+  currency TEXT,
+  security_type TEXT CHECK (security_type IN ('STOCK', 'ETF', 'BOND', 'OPTION', 'FUTURE', 'CRYPTO')),
+  sector TEXT,
+  region TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Create indexes for fast lookups
-CREATE INDEX idx_securities_isin ON securities(isin);
-CREATE INDEX idx_securities_name ON securities(name);
-CREATE INDEX idx_securities_ticker ON securities(ticker_symbol);
-CREATE INDEX idx_securities_type ON securities(security_type);
+-- Create indexes for performance
+CREATE INDEX IF NOT EXISTS idx_securities_isin ON securities(isin);
+CREATE INDEX IF NOT EXISTS idx_securities_name ON securities(name);
+CREATE INDEX IF NOT EXISTS idx_securities_ticker ON securities(ticker_symbol);
+CREATE INDEX IF NOT EXISTS idx_securities_yahoo ON securities(yahoo_symbol);
 
 -- Enable full-text search on name and alternative names
 CREATE INDEX idx_securities_name_trgm ON securities USING gin (name gin_trgm_ops);
@@ -43,4 +43,3 @@ CREATE TRIGGER update_securities_updated_at
   BEFORE UPDATE ON securities
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
-
