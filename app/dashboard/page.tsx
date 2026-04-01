@@ -395,8 +395,10 @@ export default function DashboardPage() {
       }
       await loadDashboard() // Reload data instead of full page refresh
 
-      // Auto-save snapshot after successful price refresh (disabled for now due to table issues)
-      // setTimeout(() => savePortfolioSnapshot(), 1000)
+      // Auto-save snapshot after successful price refresh
+      if (!silent) {
+        setTimeout(() => savePortfolioSnapshot(), 1000)
+      }
     } catch (error) {
       if (!silent) {
         console.error("❌ Error refreshing prices:", error)
@@ -567,15 +569,82 @@ export default function DashboardPage() {
   }, [stocks, etfs, metrics.totalValue])
 
   // Performance data for line chart - based on selected period
-  const performanceData = useMemo(() => {
-    return generatePerformanceData(
-      metrics.totalCost,
-      metrics.totalValue,
-      selectedPeriod,
-      customStartDate,
-      customEndDate
-    )
-  }, [metrics.totalCost, metrics.totalValue, selectedPeriod, customStartDate, customEndDate])
+  // Use real historical snapshot data if available
+  const [performanceData, setPerformanceData] = useState<{ date: string; value: number; invested: number }[]>([])
+
+  useEffect(() => {
+    async function loadPerformanceData() {
+      if (!portfolioId) {
+        // Fallback to simulated data if no portfolio ID
+        const simulatedData = generatePerformanceData(
+          metrics.totalCost,
+          metrics.totalValue,
+          selectedPeriod,
+          customStartDate,
+          customEndDate
+        )
+        setPerformanceData(simulatedData)
+        return
+      }
+
+      try {
+        // Fetch historical snapshots from database
+        const res = await fetch(`/api/save-snapshot?portfolio_id=${portfolioId}&period=${selectedPeriod}`)
+        if (res.ok) {
+          const { snapshots } = await res.json()
+
+          if (snapshots && snapshots.length > 0) {
+            // Use real historical data
+            const historicalData = snapshots.map((snap: any) => ({
+              date: new Date(snap.snapshot_date).toLocaleDateString('nl-NL', {
+                day: 'numeric',
+                month: 'short'
+              }),
+              value: Number(snap.total_value),
+              invested: Number(snap.total_cost),
+            }))
+
+            // Add current day's data if not already included
+            const today = new Date().toISOString().split('T')[0]
+            const hasToday = snapshots.some((s: any) => s.snapshot_date === today)
+
+            if (!hasToday) {
+              historicalData.push({
+                date: new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
+                value: metrics.totalValue,
+                invested: metrics.totalCost,
+              })
+            }
+
+            setPerformanceData(historicalData)
+          } else {
+            // No snapshots, use simulated data
+            const simulatedData = generatePerformanceData(
+              metrics.totalCost,
+              metrics.totalValue,
+              selectedPeriod,
+              customStartDate,
+              customEndDate
+            )
+            setPerformanceData(simulatedData)
+          }
+        }
+      } catch (error) {
+        console.error('Error loading performance data:', error)
+        // Fallback to simulated data on error
+        const simulatedData = generatePerformanceData(
+          metrics.totalCost,
+          metrics.totalValue,
+          selectedPeriod,
+          customStartDate,
+          customEndDate
+        )
+        setPerformanceData(simulatedData)
+      }
+    }
+
+    loadPerformanceData()
+  }, [metrics.totalCost, metrics.totalValue, selectedPeriod, customStartDate, customEndDate, portfolioId])
 
   // Period-specific performance metrics
   const periodMetrics = useMemo(() => {
@@ -781,8 +850,8 @@ export default function DashboardPage() {
             title="Portfolio Waarde"
             value={formatCurrency(metrics.totalValue)}
             change={{
-              value: `${metrics.totalReturnPct >= 0 ? "+" : ""}${metrics.totalReturnPct.toFixed(2)}%`,
-              isPositive: metrics.totalReturnPct >= 0,
+              value: `${metrics.totalDailyPnLPercent >= 0 ? "+" : ""}${metrics.totalDailyPnLPercent.toFixed(2)}%`,
+              isPositive: metrics.totalDailyPnLPercent >= 0,
             }}
             icon={Wallet}
             iconColor="bg-indigo-600"

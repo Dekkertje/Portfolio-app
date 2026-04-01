@@ -416,7 +416,7 @@ export function generateBenchmarkData(
 
     data.push({
       date: dateStr,
-      portfolio: benchmarkGrowth * 100,
+      portfolio: portfolioGrowth * 100,
       benchmark: benchmarkGrowth * 100,
     })
   }
