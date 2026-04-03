@@ -381,38 +381,42 @@ export async function POST() {
 
         // Update or insert securities table with dividend info if ISIN is available
         if (item.isin && annualDividend !== null && dividendFrequency !== null) {
-          // First check if security exists
-          const { data: existingSecurity } = await supabase
-            .from("securities")
-            .select("isin")
-            .eq("isin", item.isin)
-            .single()
-
-          if (existingSecurity) {
-            // Update existing security
-            await supabase
+          try {
+            // First check if security exists (maybeSingle won't throw error if not found)
+            const { data: existingSecurity, error: selectError } = await supabase
               .from("securities")
-              .update({
-                annual_dividend: Math.round(annualDividend * 10000) / 10000,
-                dividend_frequency: dividendFrequency,
-              })
+              .select("isin")
               .eq("isin", item.isin)
-          } else {
-            // Insert new security
-            await supabase
-              .from("securities")
-              .insert({
-                isin: item.isin,
-                name: item.product,
-                ticker_symbol: stockInfo.symbol,
-                yahoo_symbol: stockInfo.yahooSymbol,
-                currency: finalCurrency,
-                annual_dividend: Math.round(annualDividend * 10000) / 10000,
-                dividend_frequency: dividendFrequency,
-                security_type: 'STOCK', // Default to STOCK, can be refined later
-              })
+              .maybeSingle()
 
-            console.log(`   ✨ Created new security entry for ${item.product}`)
+            if (existingSecurity) {
+              // Update existing security
+              await supabase
+                .from("securities")
+                .update({
+                  annual_dividend: Math.round(annualDividend * 10000) / 10000,
+                  dividend_frequency: dividendFrequency,
+                })
+                .eq("isin", item.isin)
+            } else {
+              // Insert new security
+              await supabase
+                .from("securities")
+                .insert({
+                  isin: item.isin,
+                  name: item.product,
+                  ticker_symbol: stockInfo.symbol,
+                  yahoo_symbol: stockInfo.yahooSymbol,
+                  currency: finalCurrency,
+                  annual_dividend: Math.round(annualDividend * 10000) / 10000,
+                  dividend_frequency: dividendFrequency,
+                  security_type: 'STOCK', // Default to STOCK, can be refined later
+                })
+
+              console.log(`   ✨ Created new security entry for ${item.product}`)
+            }
+          } catch (secError) {
+            console.log(`   ⚠️  Could not update securities table: ${secError}`)
           }
         }
 
