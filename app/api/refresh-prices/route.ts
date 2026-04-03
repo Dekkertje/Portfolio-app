@@ -335,8 +335,8 @@ export async function POST() {
         console.log(`✅ ${item.product}: €${finalPrice.toFixed(2)} (${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%)`)
 
         // Fetch dividend data from Yahoo Finance quoteSummary API
-        let annualDividend: number | null = null
-        let dividendFrequency: string | null = null
+        let annualDividend: number = 0
+        let dividendFrequency: string = 'none'
 
         try {
           const dividendUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(
@@ -371,8 +371,6 @@ export async function POST() {
               console.log(`   💰 Dividend: €${annualDividend.toFixed(2)}/year (${dividendFrequency})`)
             } else {
               console.log(`   💰 No dividend`)
-              annualDividend = 0
-              dividendFrequency = 'none'
             }
           }
         } catch (divError) {
@@ -380,7 +378,7 @@ export async function POST() {
         }
 
         // Update or insert securities table with dividend info if ISIN is available
-        if (item.isin && annualDividend !== null && dividendFrequency !== null) {
+        if (item.isin) {
           try {
             // First check if security exists (maybeSingle won't throw error if not found)
             const { data: existingSecurity, error: selectError } = await supabase
