@@ -334,6 +334,88 @@ export async function POST() {
 
         console.log(`✅ ${item.product}: €${finalPrice.toFixed(2)} (${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%)`)
 
+        // Fetch dividend data from Yahoo Finance quoteSummary API
+        let annualDividend: number | null = null
+        let dividendFrequency: string | null = null
+
+        try {
+          const dividendUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(
+            stockInfo.yahooSymbol
+          )}?modules=summaryDetail,defaultKeyStatistics`
+
+          const divRes = await fetch(dividendUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0'
+            }
+          })
+
+          if (divRes.ok) {
+            const divJson = await divRes.json()
+            const summaryDetail = divJson?.quoteSummary?.result?.[0]?.summaryDetail
+            const defaultKeyStats = divJson?.quoteSummary?.result?.[0]?.defaultKeyStatistics
+
+            // Get trailing annual dividend rate (in native currency)
+            const trailingAnnualDividend = summaryDetail?.trailingAnnualDividendRate?.raw ||
+                                          defaultKeyStats?.trailingAnnualDividendRate?.raw
+
+            if (trailingAnnualDividend && trailingAnnualDividend > 0) {
+              // Convert to EUR if needed
+              annualDividend = stockInfo.currency === "USD"
+                ? trailingAnnualDividend * usdToEurRate
+                : trailingAnnualDividend
+
+              // Determine frequency based on dividend yield patterns
+              // Most US stocks pay quarterly, European stocks typically annual
+              dividendFrequency = stockInfo.currency === "USD" ? 'quarterly' : 'annual'
+
+              console.log(`   💰 Dividend: €${annualDividend.toFixed(2)}/year (${dividendFrequency})`)
+            } else {
+              console.log(`   💰 No dividend`)
+              annualDividend = 0
+              dividendFrequency = 'none'
+            }
+          }
+        } catch (divError) {
+          console.log(`   ⚠️  Could not fetch dividend data: ${divError}`)
+        }
+
+        // Update or insert securities table with dividend info if ISIN is available
+        if (item.isin && annualDividend !== null && dividendFrequency !== null) {
+          // First check if security exists
+          const { data: existingSecurity } = await supabase
+            .from("securities")
+            .select("isin")
+            .eq("isin", item.isin)
+            .single()
+
+          if (existingSecurity) {
+            // Update existing security
+            await supabase
+              .from("securities")
+              .update({
+                annual_dividend: Math.round(annualDividend * 10000) / 10000,
+                dividend_frequency: dividendFrequency,
+              })
+              .eq("isin", item.isin)
+          } else {
+            // Insert new security
+            await supabase
+              .from("securities")
+              .insert({
+                isin: item.isin,
+                name: item.product,
+                ticker_symbol: stockInfo.symbol,
+                yahoo_symbol: stockInfo.yahooSymbol,
+                currency: finalCurrency,
+                annual_dividend: Math.round(annualDividend * 10000) / 10000,
+                dividend_frequency: dividendFrequency,
+                security_type: 'STOCK', // Default to STOCK, can be refined later
+              })
+
+            console.log(`   ✨ Created new security entry for ${item.product}`)
+          }
+        }
+
         // Delete existing price for today (if any) to avoid duplicates
         await supabase
           .from("prices")
