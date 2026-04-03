@@ -574,15 +574,16 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function loadPerformanceData() {
+      // Always generate simulated data as fallback first
+      const simulatedData = generatePerformanceData(
+        metrics.totalCost,
+        metrics.totalValue,
+        selectedPeriod,
+        customStartDate,
+        customEndDate
+      )
+
       if (!portfolioId) {
-        // Fallback to simulated data if no portfolio ID
-        const simulatedData = generatePerformanceData(
-          metrics.totalCost,
-          metrics.totalValue,
-          selectedPeriod,
-          customStartDate,
-          customEndDate
-        )
         setPerformanceData(simulatedData)
         return
       }
@@ -619,26 +620,15 @@ export default function DashboardPage() {
             setPerformanceData(historicalData)
           } else {
             // No snapshots, use simulated data
-            const simulatedData = generatePerformanceData(
-              metrics.totalCost,
-              metrics.totalValue,
-              selectedPeriod,
-              customStartDate,
-              customEndDate
-            )
             setPerformanceData(simulatedData)
           }
+        } else {
+          // Fetch failed, use simulated data
+          setPerformanceData(simulatedData)
         }
       } catch (error) {
         console.error('Error loading performance data:', error)
         // Fallback to simulated data on error
-        const simulatedData = generatePerformanceData(
-          metrics.totalCost,
-          metrics.totalValue,
-          selectedPeriod,
-          customStartDate,
-          customEndDate
-        )
         setPerformanceData(simulatedData)
       }
     }
@@ -885,21 +875,23 @@ export default function DashboardPage() {
           {/* Performance Chart */}
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-900/5">
             <div className="mb-4 flex flex-col gap-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900">Portfolio Prestaties</h2>
                   <p className="text-sm text-slate-500">Waarde ontwikkeling over tijd</p>
                 </div>
-                <PeriodFilter
-                  selectedPeriod={selectedPeriod}
-                  onPeriodChange={setSelectedPeriod}
-                  customStartDate={customStartDate}
-                  customEndDate={customEndDate}
-                  onCustomDateChange={(start, end) => {
-                    setCustomStartDate(start)
-                    setCustomEndDate(end)
-                  }}
-                />
+                <div className="overflow-x-auto">
+                  <PeriodFilter
+                    selectedPeriod={selectedPeriod}
+                    onPeriodChange={setSelectedPeriod}
+                    customStartDate={customStartDate}
+                    customEndDate={customEndDate}
+                    onCustomDateChange={(start, end) => {
+                      setCustomStartDate(start)
+                      setCustomEndDate(end)
+                    }}
+                  />
+                </div>
               </div>
               {/* Period-specific metrics */}
               <div className="flex items-center gap-4 rounded-lg bg-slate-50 px-4 py-3">
@@ -992,15 +984,17 @@ export default function DashboardPage() {
         <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* Benchmark Comparison */}
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-900/5">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Benchmark Vergelijking</h2>
                 <p className="text-sm text-slate-500">Vergelijk je portfolio met marktindices</p>
               </div>
-              <BenchmarkSelector
-                selectedBenchmark={selectedBenchmark}
-                onBenchmarkChange={setSelectedBenchmark}
-              />
+              <div className="overflow-x-auto">
+                <BenchmarkSelector
+                  selectedBenchmark={selectedBenchmark}
+                  onBenchmarkChange={setSelectedBenchmark}
+                />
+              </div>
             </div>
             <div className="h-[320px]">
               <BenchmarkChart data={benchmarkData} benchmarkType={selectedBenchmark} />
