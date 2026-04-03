@@ -389,16 +389,22 @@ export async function POST() {
 
             if (existingSecurity) {
               // Update existing security
-              await supabase
+              const { error: updateError } = await supabase
                 .from("securities")
                 .update({
                   annual_dividend: Math.round(annualDividend * 10000) / 10000,
                   dividend_frequency: dividendFrequency,
                 })
                 .eq("isin", item.isin)
+
+              if (updateError) {
+                console.log(`   ⚠️  Failed to update security: ${updateError.message}`)
+              } else {
+                console.log(`   ✅ Updated security dividend data`)
+              }
             } else {
               // Insert new security
-              await supabase
+              const { error: insertError } = await supabase
                 .from("securities")
                 .insert({
                   isin: item.isin,
@@ -411,7 +417,11 @@ export async function POST() {
                   security_type: 'STOCK', // Default to STOCK, can be refined later
                 })
 
-              console.log(`   ✨ Created new security entry for ${item.product}`)
+              if (insertError) {
+                console.log(`   ⚠️  Failed to insert security: ${insertError.message}`)
+              } else {
+                console.log(`   ✨ Created new security entry for ${item.product}`)
+              }
             }
           } catch (secError) {
             console.log(`   ⚠️  Could not update securities table: ${secError}`)
