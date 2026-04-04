@@ -203,6 +203,7 @@ export async function POST() {
     let inserted = 0
     let skipped = 0
     const errors: string[] = []
+    const dividendStats: { product: string; dividend: number; frequency: string }[] = []
 
     for (const item of uniqueProducts) {
       // Try hardcoded mapping first
@@ -369,6 +370,13 @@ export async function POST() {
               dividendFrequency = stockInfo.currency === "USD" ? 'quarterly' : 'annual'
 
               console.log(`   💰 Dividend: €${annualDividend.toFixed(2)}/year (${dividendFrequency})`)
+
+              // Track for response
+              dividendStats.push({
+                product: item.product,
+                dividend: annualDividend,
+                frequency: dividendFrequency
+              })
             } else {
               console.log(`   💰 No dividend`)
             }
@@ -464,7 +472,8 @@ export async function POST() {
       inserted,
       skipped,
       errors,
-      message: `${inserted} prijzen opgehaald, ${skipped} overgeslagen`
+      dividendStats,
+      message: `${inserted} prijzen opgehaald, ${skipped} overgeslagen, ${dividendStats.length} dividenden gevonden`
     })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })

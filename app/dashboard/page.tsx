@@ -373,6 +373,15 @@ export default function DashboardPage() {
         // eslint-disable-next-line no-console
         console.log("📦 API Response data:", data)
 
+        if (data.dividendStats && data.dividendStats.length > 0) {
+          // eslint-disable-next-line no-console
+          console.log("💰 Dividend Data Found:")
+          data.dividendStats.forEach((stat: any) => {
+            // eslint-disable-next-line no-console
+            console.log(`   ${stat.product}: €${stat.dividend.toFixed(2)}/year (${stat.frequency})`)
+          })
+        }
+
         if (data.errors && data.errors.length > 0) {
           // eslint-disable-next-line no-console
           console.error("🚨 Price refresh errors:")
