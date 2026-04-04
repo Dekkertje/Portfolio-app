@@ -21,7 +21,8 @@ CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_portfolio_id ON portfolio_sna
 CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_date ON portfolio_snapshots(snapshot_date);
 CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_portfolio_date ON portfolio_snapshots(portfolio_id, snapshot_date);
 
--- Create trigger for updated_at
+-- Create trigger for updated_at (drop first if exists)
+DROP TRIGGER IF EXISTS update_portfolio_snapshots_updated_at ON portfolio_snapshots;
 CREATE TRIGGER update_portfolio_snapshots_updated_at
   BEFORE UPDATE ON portfolio_snapshots
   FOR EACH ROW
