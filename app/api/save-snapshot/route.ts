@@ -63,6 +63,7 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
+    const supabase = await createServerSupabaseClient()
     const { searchParams } = new URL(request.url)
     const portfolio_id = searchParams.get("portfolio_id")
     const period = searchParams.get("period") || "1M"
