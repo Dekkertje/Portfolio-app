@@ -117,7 +117,7 @@ export function CashPositionModal({ isOpen, onClose, portfolioId, onSuccess }: C
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-4">
-            <Button variant="outline" onClick={handleClose}>
+            <Button variant="secondary" onClick={handleClose}>
               Annuleren
             </Button>
             <Button onClick={handleSave} disabled={saving || !amount}>

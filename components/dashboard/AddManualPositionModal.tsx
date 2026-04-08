@@ -229,7 +229,7 @@ export function AddManualPositionModal({ isOpen, onClose, portfolioId, onSuccess
 
             {/* Actions */}
             <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={handleClose}>
+              <Button variant="secondary" onClick={handleClose}>
                 Annuleren
               </Button>
               <Button onClick={handleSave} disabled={saving || !quantity || !averagePrice}>
