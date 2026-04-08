@@ -165,7 +165,7 @@ export function CompoundCalculator() {
                 borderRadius: "8px",
                 color: isDark ? "#f1f5f9" : "#0f172a",
               }}
-              formatter={(value: number) => `€${value.toLocaleString()}`}
+              formatter={(value) => `€${Number(value).toLocaleString()}`}
             />
             <Legend
               wrapperStyle={{
