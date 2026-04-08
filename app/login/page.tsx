@@ -4,13 +4,9 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
 import { useToast } from "@/components/ui/Toast"
-import { Input } from "@/components/ui/Input"
 import { Button } from "@/components/ui/Button"
-import Link from "next/link"
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [checking, setChecking] = useState(true)
   const router = useRouter()
@@ -28,26 +24,22 @@ export default function LoginPage() {
     checkAuth()
   }, [router])
 
-  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
+  async function handleGoogleLogin() {
     setLoading(true)
-
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
       })
 
       if (error) {
         showToast(error.message, "error")
-        return
+        setLoading(false)
       }
-
-      showToast("Succesvol ingelogd!", "success")
-      router.push("/dashboard")
     } catch (error) {
       showToast("Er ging iets mis bij het inloggen.", "error")
-    } finally {
       setLoading(false)
     }
   }

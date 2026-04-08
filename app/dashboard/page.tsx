@@ -20,6 +20,7 @@ import { PrivacyText } from "@/components/ui/PrivacyText"
 import { AddManualPositionModal } from "@/components/dashboard/AddManualPositionModal"
 import { CashPositionModal } from "@/components/dashboard/CashPositionModal"
 import { CompoundCalculator } from "@/components/dashboard/CompoundCalculator"
+import { CashPositionCard } from "@/components/dashboard/CashPositionCard"
 
 export default function DashboardPage() {
   const [positions, setPositions] = useState<Position[]>([])
@@ -83,6 +84,12 @@ export default function DashboardPage() {
         .select("product, isin, total_eur")
         .eq("portfolio_id", portfolio.id)
         .ilike("transaction_type", "%dividend%")
+
+      // Fetch manual positions
+      const { data: manualPositions } = await supabase
+        .from("manual_positions")
+        .select("*")
+        .eq("portfolio_id", portfolio.id)
 
       if (txError || !transactions) {
         showToast("Fout bij laden van transacties", "error")
@@ -206,6 +213,28 @@ export default function DashboardPage() {
         if (tx.product.toUpperCase().includes("ASML")) {
           // eslint-disable-next-line no-console
           console.log(`  → After: ${grouped[key].quantity} aandelen | Invested: €${grouped[key].invested.toFixed(2)}`)
+        }
+      }
+
+      // Add manual positions to grouped
+      if (manualPositions && manualPositions.length > 0) {
+        for (const mp of manualPositions) {
+          const key = `${mp.product_name}__${mp.isin || mp.yahoo_symbol}`
+
+          if (!grouped[key]) {
+            grouped[key] = {
+              product: mp.product_name,
+              isin: mp.isin || mp.yahoo_symbol,
+              quantity: mp.quantity,
+              avgPrice: mp.average_price,
+              invested: mp.quantity * mp.average_price,
+              currentPrice: 0,
+              currentValue: 0,
+              totalFees: 0,
+              realizedPnL: 0,
+              isETF: isETF(mp.product_name),
+            }
+          }
         }
       }
 
@@ -370,6 +399,25 @@ export default function DashboardPage() {
     } catch (error) {
       console.error("Error loading cash positions:", error)
     }
+  }
+
+  async function handleDeleteCash(id: string) {
+    try {
+      const res = await fetch(`/api/cash-positions?id=${id}`, {
+        method: "DELETE",
+      })
+      if (res.ok) {
+        showToast("Cash positie verwijderd", "success")
+        loadCashPositions()
+      }
+    } catch (error) {
+      showToast("Fout bij verwijderen", "error")
+    }
+  }
+
+  function handleEditCash(position: any) {
+    // Pre-fill modal with existing data
+    setShowCashModal(true)
   }
 
   async function handleRefreshPrices(silent = false) {
@@ -886,6 +934,17 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Cash Positions Card */}
+        {cashPositions.length > 0 && (
+          <div className="mb-6">
+            <CashPositionCard
+              positions={cashPositions}
+              onEdit={handleEditCash}
+              onDelete={handleDeleteCash}
+            />
+          </div>
+        )}
 
         {/* Main Metrics Grid */}
         <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
