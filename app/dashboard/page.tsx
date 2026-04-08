@@ -9,7 +9,7 @@ import { PerformanceChart } from "@/components/dashboard/PerformanceChart"
 import { PositionsTable } from "@/components/dashboard/PositionsTable"
 import { Button } from "@/components/ui/Button"
 import { useToast } from "@/components/ui/Toast"
-import { Wallet, TrendingUp, PiggyBank, Percent, RefreshCw } from "lucide-react"
+import { Wallet, TrendingUp, PiggyBank, Percent, RefreshCw, Plus, DollarSign, Calculator } from "lucide-react"
 import { Transaction, Price, Position, PriceAlert } from "@/lib/types"
 import { formatCurrency, isETF, getSector, generatePerformanceData, generateBenchmarkData, calculateDividendYield, BenchmarkType } from "@/lib/utils"
 import { PeriodFilter, Period } from "@/components/dashboard/PeriodFilter"
@@ -17,6 +17,9 @@ import { BenchmarkChart } from "@/components/dashboard/BenchmarkChart"
 import { BenchmarkSelector } from "@/components/dashboard/BenchmarkSelector"
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel"
 import { PrivacyText } from "@/components/ui/PrivacyText"
+import { AddManualPositionModal } from "@/components/dashboard/AddManualPositionModal"
+import { CashPositionModal } from "@/components/dashboard/CashPositionModal"
+import { CompoundCalculator } from "@/components/dashboard/CompoundCalculator"
 
 export default function DashboardPage() {
   const [positions, setPositions] = useState<Position[]>([])
@@ -29,6 +32,9 @@ export default function DashboardPage() {
   const [alerts, setAlerts] = useState<PriceAlert[]>([])
   const [portfolioId, setPortfolioId] = useState<string | null>(null)
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true)
+  const [showAddPositionModal, setShowAddPositionModal] = useState(false)
+  const [showCashModal, setShowCashModal] = useState(false)
+  const [cashPositions, setCashPositions] = useState<any[]>([])
   const { showToast } = useToast()
 
   async function loadDashboard() {
@@ -352,6 +358,20 @@ export default function DashboardPage() {
     }
   }
 
+  async function loadCashPositions() {
+    if (!portfolioId) return
+
+    try {
+      const res = await fetch(`/api/cash-positions?portfolio_id=${portfolioId}`)
+      const data = await res.json()
+      if (data.positions) {
+        setCashPositions(data.positions)
+      }
+    } catch (error) {
+      console.error("Error loading cash positions:", error)
+    }
+  }
+
   async function handleRefreshPrices(silent = false) {
     setRefreshing(true)
     if (!silent) {
@@ -646,6 +666,13 @@ export default function DashboardPage() {
     loadPerformanceData()
   }, [metrics.totalCost, metrics.totalValue, selectedPeriod, customStartDate, customEndDate, portfolioId])
 
+  // Load cash positions when portfolio ID is available
+  useEffect(() => {
+    if (portfolioId) {
+      loadCashPositions()
+    }
+  }, [portfolioId])
+
   // Period-specific performance metrics
   const periodMetrics = useMemo(() => {
     if (performanceData.length < 2) {
@@ -711,7 +738,23 @@ export default function DashboardPage() {
               Welkom terug! Bekijk je portfolio prestaties
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => setShowAddPositionModal(true)}
+              variant="secondary"
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Aandeel
+            </Button>
+            <Button
+              onClick={() => setShowCashModal(true)}
+              variant="secondary"
+              className="gap-2"
+            >
+              <DollarSign className="h-4 w-4" />
+              Cash
+            </Button>
             <Button
               onClick={savePortfolioSnapshot}
               disabled={!portfolioId}
@@ -719,7 +762,7 @@ export default function DashboardPage() {
               className="gap-2"
             >
               <PiggyBank className="h-4 w-4" />
-              Snapshot Opslaan
+              Snapshot
             </Button>
             <Button
               onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
@@ -727,7 +770,7 @@ export default function DashboardPage() {
               className="gap-2"
             >
               <RefreshCw className={`h-4 w-4 ${autoRefreshEnabled ? "animate-spin" : ""}`} />
-              Auto-refresh {autoRefreshEnabled ? "Aan" : "Uit"}
+              Auto {autoRefreshEnabled ? "Aan" : "Uit"}
             </Button>
             <Button
               onClick={() => handleRefreshPrices(false)}
@@ -736,7 +779,7 @@ export default function DashboardPage() {
               className="gap-2"
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              {refreshing ? "Bezig..." : "Nu Verversen"}
+              {refreshing ? "Bezig..." : "Verversen"}
             </Button>
           </div>
         </div>
@@ -1079,16 +1122,43 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Compound Interest Calculator */}
+        <div className="mb-8">
+          <CompoundCalculator />
+        </div>
+
         {/* Empty State */}
         {positions.length === 0 && (
-          <div className="rounded-xl bg-white p-12 text-center shadow-sm ring-1 ring-slate-900/5">
-            <p className="text-slate-500">Geen posities gevonden</p>
-            <p className="mt-2 text-sm text-slate-400">
-              Importeer transacties om je portfolio te vullen
+          <div className="rounded-xl bg-white dark:bg-slate-800 p-12 text-center shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
+            <p className="text-slate-500 dark:text-slate-400">Geen posities gevonden</p>
+            <p className="mt-2 text-sm text-slate-400 dark:text-slate-500">
+              Importeer transacties of voeg handmatig aandelen toe
             </p>
           </div>
         )}
       </div>
+
+      {/* Modals */}
+      <AddManualPositionModal
+        isOpen={showAddPositionModal}
+        onClose={() => setShowAddPositionModal(false)}
+        portfolioId={portfolioId || ""}
+        onSuccess={() => {
+          setShowAddPositionModal(false)
+          showToast("Aandeel succesvol toegevoegd!", "success")
+          loadData()
+        }}
+      />
+      <CashPositionModal
+        isOpen={showCashModal}
+        onClose={() => setShowCashModal(false)}
+        portfolioId={portfolioId || ""}
+        onSuccess={() => {
+          setShowCashModal(false)
+          showToast("Cash positie opgeslagen!", "success")
+          loadCashPositions()
+        }}
+      />
     </DashboardLayout>
   )
 }
