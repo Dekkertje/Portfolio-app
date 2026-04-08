@@ -1205,7 +1205,7 @@ export default function DashboardPage() {
         onSuccess={() => {
           setShowAddPositionModal(false)
           showToast("Aandeel succesvol toegevoegd!", "success")
-          loadData()
+          loadDashboard()
         }}
       />
       <CashPositionModal
