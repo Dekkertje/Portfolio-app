@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
 import { useToast } from "@/components/ui/Toast"
 import { Button } from "@/components/ui/Button"
-import { TrendingUp } from "lucide-react"
-import Image from "next/image"
+import { TrendingUp, Mail } from "lucide-react"
+import Link from "next/link"
 
 export default function LoginPage() {
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [checking, setChecking] = useState(true)
   const router = useRouter()
@@ -25,6 +27,29 @@ export default function LoginPage() {
     }
     checkAuth()
   }, [router])
+
+  async function handleEmailLogin(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) {
+        showToast(error.message, "error")
+        setLoading(false)
+        return
+      }
+
+      router.push("/dashboard")
+    } catch (error) {
+      showToast("Er ging iets mis bij het inloggen.", "error")
+      setLoading(false)
+    }
+  }
 
   async function handleGoogleLogin() {
     setLoading(true)
@@ -73,7 +98,55 @@ export default function LoginPage() {
         <div className="rounded-2xl border border-white/20 bg-white/95 backdrop-blur-sm p-8 shadow-xl">
           <div className="mb-6 text-center">
             <h2 className="text-2xl font-bold text-slate-900">Welkom terug</h2>
-            <p className="mt-2 text-slate-600">Log in met je Google account</p>
+            <p className="mt-2 text-slate-600">Log in op je account</p>
+          </div>
+
+          {/* Email/Password Form */}
+          <form onSubmit={handleEmailLogin} className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                E-mailadres
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="naam@voorbeeld.nl"
+                required
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Wachtwoord
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              disabled={loading}
+              variant="primary"
+              className="w-full py-2.5"
+            >
+              <Mail className="mr-2 h-4 w-4" />
+              {loading ? "Bezig met inloggen..." : "Inloggen"}
+            </Button>
+          </form>
+
+          {/* Divider */}
+          <div className="my-6 flex items-center">
+            <div className="flex-1 border-t border-slate-300"></div>
+            <span className="px-4 text-sm text-slate-500">of</span>
+            <div className="flex-1 border-t border-slate-300"></div>
           </div>
 
           {/* Google Sign In Button */}
@@ -81,7 +154,7 @@ export default function LoginPage() {
             onClick={handleGoogleLogin}
             disabled={loading}
             variant="secondary"
-            className="w-full flex items-center justify-center gap-3 py-3"
+            className="w-full flex items-center justify-center gap-3 py-2.5"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path
@@ -101,12 +174,15 @@ export default function LoginPage() {
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
               />
             </svg>
-            {loading ? "Bezig met inloggen..." : "Inloggen met Google"}
+            Inloggen met Google
           </Button>
 
-          {/* Info Text */}
-          <p className="mt-6 text-center text-xs text-slate-500">
-            Door in te loggen ga je akkoord met onze voorwaarden
+          {/* Register Link */}
+          <p className="mt-6 text-center text-sm text-slate-600">
+            Nog geen account?{" "}
+            <Link href="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
+              Registreer hier
+            </Link>
           </p>
         </div>
 
