@@ -72,7 +72,7 @@ async function findSecurityByFuzzyMatch(product: string, isin: string | undefine
 
     if (matches && matches.length > 0) {
       // Calculate similarity scores and pick the best match
-      const scoredMatches = matches.map(m => ({
+      const scoredMatches = matches.map((m: any) => ({
         ...m,
         score: Math.max(
           similarity(product.toUpperCase(), m.name.toUpperCase()),
@@ -80,7 +80,7 @@ async function findSecurityByFuzzyMatch(product: string, isin: string | undefine
             similarity(product.toUpperCase(), alt.toUpperCase())
           ))
         )
-      })).sort((a, b) => b.score - a.score)
+      })).sort((a: any, b: any) => b.score - a.score)
 
       const bestMatch = scoredMatches[0]
       if (bestMatch.score > 0.3) {
