@@ -107,16 +107,77 @@ USING (
 );
 
 -- ----------------------------------------------------------------------------
--- 5. VERIFY SETUP
+-- 5. CREATE PROFILES TABLE
 -- ----------------------------------------------------------------------------
-SELECT 
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  avatar_url TEXT,
+  full_name TEXT,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies
+DROP POLICY IF EXISTS "Users can view their own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can update their own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can insert their own profile" ON profiles;
+
+-- Create policies
+CREATE POLICY "Users can view their own profile"
+  ON profiles FOR SELECT
+  USING (auth.uid() = id);
+
+CREATE POLICY "Users can update their own profile"
+  ON profiles FOR UPDATE
+  USING (auth.uid() = id);
+
+CREATE POLICY "Users can insert their own profile"
+  ON profiles FOR INSERT
+  WITH CHECK (auth.uid() = id);
+
+-- Create trigger
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
+CREATE TRIGGER update_profiles_updated_at
+  BEFORE UPDATE ON profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Function to automatically create profile on user signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id)
+  VALUES (NEW.id)
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to create profile when user signs up
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user();
+
+-- ----------------------------------------------------------------------------
+-- 6. VERIFY SETUP
+-- ----------------------------------------------------------------------------
+SELECT
   'manual_positions' as table_name,
   EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'manual_positions') as exists
 UNION ALL
-SELECT 
+SELECT
   'cash_positions',
   EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'cash_positions')
 UNION ALL
-SELECT 
+SELECT
+  'profiles',
+  EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'profiles')
+UNION ALL
+SELECT
   'avatars_bucket',
   EXISTS (SELECT FROM storage.buckets WHERE id = 'avatars');

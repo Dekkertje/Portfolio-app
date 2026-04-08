@@ -167,6 +167,7 @@ function mapProductToSymbol(product: string): StockInfo | null {
 
 export async function POST() {
   try {
+    // Fetch both DEGIRO transactions and manual positions
     const { data: transactions, error } = await supabase
       .from("transactions")
       .select("product, isin")
@@ -175,9 +176,28 @@ export async function POST() {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    // Fetch manual positions
+    const { data: manualPositions } = await supabase
+      .from("manual_positions")
+      .select("product_name, isin, yahoo_symbol")
+
+    // Combine unique products from both sources
+    const allProducts = [
+      ...(transactions || []).map((t) => ({
+        product: t.product,
+        isin: t.isin,
+        yahooSymbol: null
+      })),
+      ...(manualPositions || []).map((mp) => ({
+        product: mp.product_name,
+        isin: mp.isin,
+        yahooSymbol: mp.yahoo_symbol
+      }))
+    ]
+
     const uniqueProducts = Array.from(
       new Map(
-        (transactions || []).map((t) => [`${t.product}__${t.isin || ""}`, t])
+        allProducts.map((t) => [`${t.product}__${t.isin || t.yahooSymbol || ""}`, t])
       ).values()
     )
 
@@ -206,13 +226,25 @@ export async function POST() {
     const dividendStats: { product: string; dividend: number; frequency: string }[] = []
 
     for (const item of uniqueProducts) {
-      // Try hardcoded mapping first
-      let stockInfo = mapProductToSymbol(item.product)
+      let stockInfo = null
 
-      // If not found, try fuzzy matching from securities database
-      if (!stockInfo) {
-        console.log(`   ⚠️  No exact mapping for: ${item.product}, trying fuzzy match...`)
-        stockInfo = await findSecurityByFuzzyMatch(item.product, item.isin)
+      // If this is a manual position with yahoo_symbol, use it directly
+      if (item.yahooSymbol) {
+        console.log(`📌 Manual position - using Yahoo symbol: ${item.yahooSymbol}`)
+        stockInfo = {
+          symbol: item.yahooSymbol,
+          yahooSymbol: item.yahooSymbol,
+          currency: "USD" as "USD" | "EUR" // Default to USD, will be detected from API
+        }
+      } else {
+        // Try hardcoded mapping first
+        stockInfo = mapProductToSymbol(item.product)
+
+        // If not found, try fuzzy matching from securities database
+        if (!stockInfo) {
+          console.log(`   ⚠️  No exact mapping for: ${item.product}, trying fuzzy match...`)
+          stockInfo = await findSecurityByFuzzyMatch(item.product, item.isin)
+        }
       }
 
       if (!stockInfo) {
