@@ -29,23 +29,46 @@ export default function SettingsPage() {
   useEffect(() => {
     async function loadProfile() {
       const { data: { session } } = await supabase.auth.getSession()
-      
+
       if (!session) {
         router.push("/login")
         return
       }
 
-      const { data, error } = await supabase
+      // First try to get existing profile
+      let { data, error } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", session.user.id)
         .single()
 
+      // If no profile exists, create one
+      if (error && error.code === 'PGRST116') {
+        const { data: newProfile, error: insertError } = await supabase
+          .from("profiles")
+          .insert({
+            id: session.user.id,
+            full_name: null,
+            avatar_url: null
+          })
+          .select()
+          .single()
+
+        if (newProfile) {
+          data = newProfile
+        }
+      }
+
       if (data) {
-        setProfile(data)
+        setProfile({
+          id: data.id,
+          email: session.user.email || "",
+          full_name: data.full_name,
+          avatar_url: data.avatar_url
+        })
         setFullName(data.full_name || "")
       }
-      
+
       setLoading(false)
     }
 

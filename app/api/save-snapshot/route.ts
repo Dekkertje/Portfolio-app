@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
-import { supabaseServer as supabase } from "@/lib/supabase/server"
+import { createServerSupabaseClient } from "@/lib/supabase/server"
 
 export async function POST(request: Request) {
   try {
+    const supabase = await createServerSupabaseClient()
     const body = await request.json()
     const { portfolio_id, total_value, total_cost, total_return, total_return_pct, position_count } = body
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { supabaseServer as supabase } from "@/lib/supabase/server"
+import { createServerSupabaseClient } from "@/lib/supabase/server"
 
 type StockInfo = {
   symbol: string
@@ -167,6 +167,8 @@ function mapProductToSymbol(product: string): StockInfo | null {
 
 export async function POST() {
   try {
+    const supabase = await createServerSupabaseClient()
+
     // Fetch both DEGIRO transactions and manual positions
     const { data: transactions, error } = await supabase
       .from("transactions")
