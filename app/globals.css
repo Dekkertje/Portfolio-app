@@ -41,3 +41,14 @@ body {
 .animate-slide-in-right {
   animation: slide-in-right 0.3s ease-out;
 }
+
+/* Privacy mode blur */
+.privacy-blur {
+  filter: blur(6px);
+  user-select: none;
+  transition: filter 0.2s ease;
+}
+
+.privacy-blur:hover {
+  filter: blur(0px);
+}

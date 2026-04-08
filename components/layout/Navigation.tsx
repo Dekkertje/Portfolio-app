@@ -2,10 +2,11 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, ArrowLeftRight, Upload, LogOut, TrendingUp, Users, Moon, Sun, Settings, User } from "lucide-react"
+import { LayoutDashboard, ArrowLeftRight, Upload, LogOut, TrendingUp, Users, Moon, Sun, Settings, User, Eye, EyeOff } from "lucide-react"
 import { supabase } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { useTheme } from "@/contexts/ThemeContext"
+import { usePrivacy } from "@/contexts/PrivacyContext"
 import { useEffect, useState } from "react"
 import Image from "next/image"
 
@@ -27,6 +28,7 @@ export function Navigation() {
   const pathname = usePathname()
   const router = useRouter()
   const { theme, toggleTheme } = useTheme()
+  const { privacyMode, togglePrivacyMode } = usePrivacy()
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
 
   useEffect(() => {
@@ -132,7 +134,7 @@ export function Navigation() {
         })}
       </nav>
 
-      {/* Theme Toggle & Logout */}
+      {/* Theme Toggle, Privacy Mode & Logout */}
       <div className="border-t border-slate-800 dark:border-slate-700 p-4 space-y-2">
         <button
           onClick={toggleTheme}
@@ -147,6 +149,22 @@ export function Navigation() {
             <>
               <Sun className="h-5 w-5" />
               Light Mode
+            </>
+          )}
+        </button>
+        <button
+          onClick={togglePrivacyMode}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 dark:text-slate-400 transition-all hover:bg-slate-800 dark:hover:bg-slate-900 hover:text-white"
+        >
+          {privacyMode ? (
+            <>
+              <Eye className="h-5 w-5" />
+              Privacy Uit
+            </>
+          ) : (
+            <>
+              <EyeOff className="h-5 w-5" />
+              Privacy Aan
             </>
           )}
         </button>

@@ -1,6 +1,7 @@
 "use client"
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts"
+import { useTheme } from "@/contexts/ThemeContext"
 
 type AllocationData = {
   name: string
@@ -24,9 +25,12 @@ const COLORS = [
 ]
 
 export function AllocationChart({ data }: AllocationChartProps) {
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
+
   if (!data || data.length === 0) {
     return (
-      <div className="flex h-full w-full items-center justify-center text-slate-500">
+      <div className="flex h-full w-full items-center justify-center text-slate-500 dark:text-slate-400">
         Geen data beschikbaar
       </div>
     )
@@ -45,12 +49,19 @@ export function AllocationChart({ data }: AllocationChartProps) {
             paddingAngle={2}
             dataKey="value"
             label={({ percentage }: any) => `${percentage.toFixed(0)}%`}
+            labelLine={{ stroke: isDark ? "#94a3b8" : "#64748b" }}
           >
             {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
           <Tooltip
+            contentStyle={{
+              backgroundColor: isDark ? "#1e293b" : "white",
+              border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`,
+              borderRadius: "8px",
+              color: isDark ? "#f1f5f9" : "#0f172a",
+            }}
             formatter={(value) =>
               new Intl.NumberFormat("nl-NL", {
                 style: "currency",

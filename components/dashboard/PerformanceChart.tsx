@@ -11,6 +11,7 @@ import {
   Area,
   AreaChart,
 } from "recharts"
+import { useTheme } from "@/contexts/ThemeContext"
 
 type PerformanceData = {
   date: string
@@ -23,6 +24,9 @@ type PerformanceChartProps = {
 }
 
 export function PerformanceChart({ data }: PerformanceChartProps) {
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
+
   return (
     <div className="h-full w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -37,16 +41,19 @@ export function PerformanceChart({ data }: PerformanceChartProps) {
               <stop offset="95%" stopColor="#94a3b8" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke={isDark ? "#334155" : "#e2e8f0"}
+          />
           <XAxis
             dataKey="date"
-            stroke="#94a3b8"
+            stroke={isDark ? "#94a3b8" : "#64748b"}
             fontSize={12}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
-            stroke="#94a3b8"
+            stroke={isDark ? "#94a3b8" : "#64748b"}
             fontSize={12}
             tickLine={false}
             axisLine={false}
@@ -56,10 +63,11 @@ export function PerformanceChart({ data }: PerformanceChartProps) {
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "white",
-              border: "1px solid #e2e8f0",
+              backgroundColor: isDark ? "#1e293b" : "white",
+              border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`,
               borderRadius: "8px",
               padding: "12px",
+              color: isDark ? "#f1f5f9" : "#0f172a",
             }}
             formatter={(value) =>
               new Intl.NumberFormat("nl-NL", {
@@ -71,7 +79,7 @@ export function PerformanceChart({ data }: PerformanceChartProps) {
           <Area
             type="monotone"
             dataKey="invested"
-            stroke="#94a3b8"
+            stroke={isDark ? "#94a3b8" : "#64748b"}
             strokeWidth={2}
             fill="url(#colorInvested)"
             name="Geïnvesteerd"
