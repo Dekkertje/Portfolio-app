@@ -43,7 +43,7 @@ function levenshteinDistance(s1: string, s2: string): number {
   return costs[s2.length]
 }
 
-async function findSecurityByFuzzyMatch(product: string, isin?: string): Promise<StockInfo | null> {
+async function findSecurityByFuzzyMatch(product: string, isin: string | undefined, supabase: any): Promise<StockInfo | null> {
   try {
     // First try exact ISIN match if available
     if (isin) {
@@ -245,7 +245,7 @@ export async function POST() {
         // If not found, try fuzzy matching from securities database
         if (!stockInfo) {
           console.log(`   ⚠️  No exact mapping for: ${item.product}, trying fuzzy match...`)
-          stockInfo = await findSecurityByFuzzyMatch(item.product, item.isin)
+          stockInfo = await findSecurityByFuzzyMatch(item.product, item.isin, supabase)
         }
       }
 
