@@ -80,8 +80,8 @@ export default function LoginPage() {
           <Button
             onClick={handleGoogleLogin}
             disabled={loading}
-            variant="outline"
-            className="w-full flex items-center justify-center gap-3 border-slate-300 bg-white hover:bg-slate-50 text-slate-700 py-3"
+            variant="secondary"
+            className="w-full flex items-center justify-center gap-3 py-3"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path
