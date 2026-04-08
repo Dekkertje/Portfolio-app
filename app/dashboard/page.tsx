@@ -16,6 +16,7 @@ import { PeriodFilter, Period } from "@/components/dashboard/PeriodFilter"
 import { BenchmarkChart } from "@/components/dashboard/BenchmarkChart"
 import { BenchmarkSelector } from "@/components/dashboard/BenchmarkSelector"
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel"
+import { PrivacyText } from "@/components/ui/PrivacyText"
 
 export default function DashboardPage() {
   const [positions, setPositions] = useState<Position[]>([])
@@ -753,10 +754,10 @@ export default function DashboardPage() {
               <div>
                 <p className="text-xs font-medium text-blue-600">Aandelen</p>
                 <p className="mt-1 text-2xl font-bold text-blue-900">
-                  {stocks.length}
+                  <PrivacyText>{stocks.length}</PrivacyText>
                 </p>
                 <p className="mt-1 text-sm text-blue-700">
-                  {formatCurrency(stocks.reduce((sum, p) => sum + p.currentValue, 0))}
+                  <PrivacyText>{formatCurrency(stocks.reduce((sum, p) => sum + p.currentValue, 0))}</PrivacyText>
                 </p>
               </div>
               <div className="rounded-lg bg-blue-100 p-2">
@@ -773,10 +774,10 @@ export default function DashboardPage() {
               <div>
                 <p className="text-xs font-medium text-purple-600">ETFs</p>
                 <p className="mt-1 text-2xl font-bold text-purple-900">
-                  {etfs.length}
+                  <PrivacyText>{etfs.length}</PrivacyText>
                 </p>
                 <p className="mt-1 text-sm text-purple-700">
-                  {formatCurrency(etfs.reduce((sum, p) => sum + p.currentValue, 0))}
+                  <PrivacyText>{formatCurrency(etfs.reduce((sum, p) => sum + p.currentValue, 0))}</PrivacyText>
                 </p>
               </div>
               <div className="rounded-lg bg-purple-100 p-2">
@@ -790,7 +791,7 @@ export default function DashboardPage() {
               <div>
                 <p className="text-xs font-medium text-green-600">Gerealiseerd</p>
                 <p className="mt-1 text-2xl font-bold text-green-900">
-                  {formatCurrency(metrics.totalRealizedPnL)}
+                  <PrivacyText>{formatCurrency(metrics.totalRealizedPnL)}</PrivacyText>
                 </p>
                 <p className="mt-1 text-sm text-green-700">
                   Uit verkopen
@@ -807,7 +808,7 @@ export default function DashboardPage() {
               <div>
                 <p className="text-xs font-medium text-amber-600">Ongerealiseerd</p>
                 <p className={`mt-1 text-2xl font-bold ${metrics.unrealizedPnL >= 0 ? 'text-green-900' : 'text-red-900'}`}>
-                  {formatCurrency(metrics.unrealizedPnL)}
+                  <PrivacyText>{formatCurrency(metrics.unrealizedPnL)}</PrivacyText>
                 </p>
                 <p className="mt-1 text-sm text-amber-700">
                   Huidige posities
@@ -830,10 +831,10 @@ export default function DashboardPage() {
                   Dagwinst/Verlies
                 </p>
                 <p className={`mt-1 text-2xl font-bold ${metrics.totalDailyPnL >= 0 ? 'text-teal-900' : 'text-rose-900'}`}>
-                  {formatCurrency(metrics.totalDailyPnL)}
+                  <PrivacyText>{formatCurrency(metrics.totalDailyPnL)}</PrivacyText>
                 </p>
                 <p className={`mt-1 text-sm ${metrics.totalDailyPnL >= 0 ? 'text-teal-700' : 'text-rose-700'}`}>
-                  {metrics.totalDailyPnLPercent >= 0 ? '+' : ''}{metrics.totalDailyPnLPercent.toFixed(2)}%
+                  <PrivacyText>{metrics.totalDailyPnLPercent >= 0 ? '+' : ''}{metrics.totalDailyPnLPercent.toFixed(2)}%</PrivacyText>
                 </p>
               </div>
               <div className={`rounded-lg p-2 ${metrics.totalDailyPnL >= 0 ? 'bg-teal-100' : 'bg-rose-100'}`}>
@@ -882,12 +883,12 @@ export default function DashboardPage() {
         {/* Charts Grid */}
         <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Performance Chart */}
-          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-900/5">
+          <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
             <div className="mb-4 flex flex-col gap-3">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Portfolio Prestaties</h2>
-                  <p className="text-sm text-slate-500">Waarde ontwikkeling over tijd</p>
+                  <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Portfolio Prestaties</h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Waarde ontwikkeling over tijd</p>
                 </div>
                 <div className="overflow-x-auto">
                   <PeriodFilter
@@ -903,18 +904,18 @@ export default function DashboardPage() {
                 </div>
               </div>
               {/* Period-specific metrics */}
-              <div className="flex items-center gap-4 rounded-lg bg-slate-50 px-4 py-3">
+              <div className="flex items-center gap-4 rounded-lg bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
                 <div>
-                  <p className="text-xs font-medium text-slate-500">Periode Rendement</p>
-                  <p className={`text-lg font-bold ${periodMetrics.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {formatCurrency(periodMetrics.change)}
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Periode Rendement</p>
+                  <p className={`text-lg font-bold ${periodMetrics.change >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    <PrivacyText>{formatCurrency(periodMetrics.change)}</PrivacyText>
                   </p>
                 </div>
-                <div className="h-8 w-px bg-slate-300" />
+                <div className="h-8 w-px bg-slate-300 dark:bg-slate-600" />
                 <div>
-                  <p className="text-xs font-medium text-slate-500">Percentage</p>
-                  <p className={`text-lg font-bold ${periodMetrics.changePercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {periodMetrics.changePercent >= 0 ? '+' : ''}{periodMetrics.changePercent.toFixed(2)}%
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Percentage</p>
+                  <p className={`text-lg font-bold ${periodMetrics.changePercent >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    <PrivacyText>{periodMetrics.changePercent >= 0 ? '+' : ''}{periodMetrics.changePercent.toFixed(2)}%</PrivacyText>
                   </p>
                 </div>
               </div>
@@ -925,16 +926,16 @@ export default function DashboardPage() {
           </div>
 
           {/* Asset Type Allocation */}
-          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-900/5">
+          <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
             <div className="mb-4">
-              <h2 className="text-lg font-semibold text-slate-900">Verdeling Type</h2>
-              <p className="text-sm text-slate-500">Aandelen vs ETFs</p>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Verdeling Type</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Aandelen vs ETFs</p>
             </div>
             <div className="h-[320px]">
               {allocationData.length > 0 ? (
                 <AllocationChart data={allocationData} />
               ) : (
-                <div className="flex h-full items-center justify-center text-slate-500">
+                <div className="flex h-full items-center justify-center text-slate-500 dark:text-slate-400">
                   Geen data beschikbaar
                 </div>
               )}
@@ -942,10 +943,10 @@ export default function DashboardPage() {
           </div>
 
           {/* Stocks Allocation */}
-          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-900/5">
+          <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
             <div className="mb-4">
-              <h2 className="text-lg font-semibold text-slate-900">Aandelen Verdeling</h2>
-              <p className="text-sm text-slate-500">{stocks.length} posities</p>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Aandelen Verdeling</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400"><PrivacyText>{stocks.length} posities</PrivacyText></p>
             </div>
             <div className="h-[320px]">
               {stocksAllocationData.length > 0 ? (
@@ -962,10 +963,10 @@ export default function DashboardPage() {
         {/* ETFs Allocation Chart - separate row if ETFs exist */}
         {etfsAllocationData.length > 0 && (
           <div className="mb-8">
-            <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-900/5">
+            <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
               <div className="mb-4">
-                <h2 className="text-lg font-semibold text-slate-900">ETFs Verdeling</h2>
-                <p className="text-sm text-slate-500">{etfs.length} posities</p>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">ETFs Verdeling</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400"><PrivacyText>{etfs.length} posities</PrivacyText></p>
               </div>
               <div className="h-[320px]">
                 <AllocationChart data={etfsAllocationData} />
@@ -977,10 +978,10 @@ export default function DashboardPage() {
         {/* Sector Allocation Chart */}
         {sectorData.length > 0 && (
           <div className="mb-8">
-            <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-900/5">
+            <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
               <div className="mb-4">
-                <h2 className="text-lg font-semibold text-slate-900">Sector Verdeling</h2>
-                <p className="text-sm text-slate-500">Portfolio allocatie per sector</p>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Sector Verdeling</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Portfolio allocatie per sector</p>
               </div>
               <div className="h-[320px]">
                 <AllocationChart data={sectorData} />
@@ -992,11 +993,11 @@ export default function DashboardPage() {
         {/* Benchmark Comparison & Dividend/Alerts Grid */}
         <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* Benchmark Comparison */}
-          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-900/5">
+          <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Benchmark Vergelijking</h2>
-                <p className="text-sm text-slate-500">Vergelijk je portfolio met marktindices</p>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Benchmark Vergelijking</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Vergelijk je portfolio met marktindices</p>
               </div>
               <div className="overflow-x-auto">
                 <BenchmarkSelector
