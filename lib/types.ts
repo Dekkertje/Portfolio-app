@@ -61,6 +61,8 @@ export type Position = {
   totalDividendsReceived?: number // Total dividends received for this position
   nextDividendDate?: string
   nextEarningsDate?: string // Next earnings announcement date
+  isManual?: boolean // Flag to identify manual positions
+  manualPositionId?: string // ID for manual positions
 }
 
 // Portfolio Snapshots for historical tracking
