@@ -21,6 +21,7 @@ import { AddManualPositionModal } from "@/components/dashboard/AddManualPosition
 import { CashPositionModal } from "@/components/dashboard/CashPositionModal"
 import { CompoundCalculator } from "@/components/dashboard/CompoundCalculator"
 import { CashPositionCard } from "@/components/dashboard/CashPositionCard"
+import { ConfirmModal } from "@/components/ui/ConfirmModal"
 
 export default function DashboardPage() {
   const [positions, setPositions] = useState<Position[]>([])
@@ -36,6 +37,13 @@ export default function DashboardPage() {
   const [showAddPositionModal, setShowAddPositionModal] = useState(false)
   const [showCashModal, setShowCashModal] = useState(false)
   const [cashPositions, setCashPositions] = useState<any[]>([])
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    show: boolean
+    isin: string
+    product: string
+    isManual: boolean
+    manualPositionId?: string
+  }>({ show: false, isin: '', product: '', isManual: false })
   const { showToast } = useToast()
 
   async function loadDashboard() {
@@ -233,6 +241,8 @@ export default function DashboardPage() {
               totalFees: 0,
               realizedPnL: 0,
               isETF: isETF(mp.product_name),
+              isManual: true,
+              manualPositionId: mp.id,
             }
           }
         }
@@ -418,6 +428,43 @@ export default function DashboardPage() {
   function handleEditCash(position: any) {
     // Pre-fill modal with existing data
     setShowCashModal(true)
+  }
+
+  function handleDeletePosition(isin: string, product: string, isManual: boolean, manualPositionId?: string) {
+    setDeleteConfirm({
+      show: true,
+      isin,
+      product,
+      isManual,
+      manualPositionId
+    })
+  }
+
+  async function confirmDeletePosition() {
+    const { isManual, manualPositionId, isin, product } = deleteConfirm
+
+    try {
+      if (isManual && manualPositionId) {
+        // Delete manual position
+        const res = await fetch(`/api/manual-positions?id=${manualPositionId}`, {
+          method: "DELETE",
+        })
+        if (res.ok) {
+          showToast(`${product} verwijderd!`, "success")
+          loadDashboard()
+        } else {
+          throw new Error("Delete failed")
+        }
+      } else {
+        // For DEGIRO positions, we can't actually delete them from transactions
+        // But we could add a "hidden" flag if needed
+        showToast("DEGIRO posities kunnen niet verwijderd worden. Importeer nieuwe transacties om te updaten.", "error")
+      }
+    } catch (error) {
+      showToast("Fout bij verwijderen", "error")
+    }
+
+    setDeleteConfirm({ show: false, isin: '', product: '', isManual: false })
   }
 
   async function handleRefreshPrices(silent = false) {
@@ -1162,7 +1209,7 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
-            <PositionsTable positions={stocks} />
+            <PositionsTable positions={stocks} onDeletePosition={handleDeletePosition} />
           </div>
         )}
 
@@ -1177,7 +1224,7 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
-            <PositionsTable positions={etfs} />
+            <PositionsTable positions={etfs} onDeletePosition={handleDeletePosition} />
           </div>
         )}
 
@@ -1217,6 +1264,16 @@ export default function DashboardPage() {
           showToast("Cash positie opgeslagen!", "success")
           loadCashPositions()
         }}
+      />
+      <ConfirmModal
+        isOpen={deleteConfirm.show}
+        onClose={() => setDeleteConfirm({ show: false, isin: '', product: '', isManual: false })}
+        onConfirm={confirmDeletePosition}
+        title="Positie Verwijderen"
+        message={`Weet je zeker dat je "${deleteConfirm.product}" wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt.`}
+        confirmText="Ja, Verwijderen"
+        cancelText="Annuleren"
+        variant="danger"
       />
     </DashboardLayout>
   )

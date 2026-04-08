@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react"
-import { TrendingUp, TrendingDown, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
+import { TrendingUp, TrendingDown, ArrowUpDown, ArrowUp, ArrowDown, Trash2 } from "lucide-react"
 
 type Position = {
   product: string
@@ -17,10 +17,13 @@ type Position = {
   nextEarningsDate?: string
   annualDividend?: number
   dividendYield?: number
+  isManual?: boolean  // Flag to identify manual positions
+  manualPositionId?: string  // ID for manual positions
 }
 
 type PositionsTableProps = {
   positions: Position[]
+  onDeletePosition?: (isin: string, product: string, isManual: boolean, manualPositionId?: string) => void
 }
 
 type SortField = 'product' | 'quantity' | 'avgPrice' | 'currentPrice' | 'currentValue' | 'pnl'
@@ -41,7 +44,7 @@ function formatNumber(value: number) {
   }).format(value)
 }
 
-export function PositionsTable({ positions }: PositionsTableProps) {
+export function PositionsTable({ positions, onDeletePosition }: PositionsTableProps) {
   const [sortField, setSortField] = useState<SortField>('currentValue')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
 
@@ -188,6 +191,11 @@ export function PositionsTable({ positions }: PositionsTableProps) {
               >
                 Earnings
               </th>
+              {onDeletePosition && (
+                <th className="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-600">
+                  Acties
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 bg-white">
@@ -296,6 +304,22 @@ export function PositionsTable({ positions }: PositionsTableProps) {
                       <div className="text-xs text-slate-300">-</div>
                     )}
                   </td>
+                  {onDeletePosition && (
+                    <td className="px-6 py-4 text-center">
+                      <button
+                        onClick={() => onDeletePosition(
+                          position.isin || '',
+                          position.product,
+                          position.isManual || false,
+                          position.manualPositionId
+                        )}
+                        className="rounded-lg p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        title="Verwijder positie"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               )
             })}
