@@ -44,17 +44,28 @@ export async function DELETE(request: Request) {
     }
 
     // First, check how many transactions exist BEFORE delete
+    // IMPORTANT: If ISIN is very short (like "H"), it's probably a ticker symbol, not an ISIN
+    // Real ISINs are 12 characters (e.g., US0378331005, NL0010273215)
+    const isRealISIN = isin && isin.length >= 10
+
     let checkQuery = supabase
       .from("transactions")
       .select("id, product, isin, transaction_type, quantity")
       .eq("portfolio_id", portfolio_id)
 
-    if (isin && isin !== 'null' && isin !== 'undefined') {
+    // Only filter by ISIN if it's a real ISIN (not a short ticker like "H")
+    if (isRealISIN) {
       checkQuery = checkQuery.eq("isin", isin)
+      console.log(`   Using ISIN filter: ${isin} (length: ${isin.length})`)
+    } else if (isin) {
+      console.log(`   ⚠️ ISIN too short ("${isin}", length: ${isin.length}), ignoring ISIN filter`)
+      console.log(`   This is likely a ticker symbol, not an ISIN. Will match by product name only.`)
     }
 
+    // Always filter by product name for safety
     if (product && product !== 'null' && product !== 'undefined') {
       checkQuery = checkQuery.eq("product", product)
+      console.log(`   Using product filter: ${product}`)
     }
 
     const { data: existingTransactions, error: checkError } = await checkQuery
@@ -134,16 +145,18 @@ export async function DELETE(request: Request) {
       )
     }
 
-    // Now delete them
+    // Now delete them - use same filters as check query
     let deleteQuery = supabase
       .from("transactions")
       .delete()
       .eq("portfolio_id", portfolio_id)
 
-    if (isin && isin !== 'null' && isin !== 'undefined') {
+    // Only filter by ISIN if it's a real ISIN
+    if (isRealISIN) {
       deleteQuery = deleteQuery.eq("isin", isin)
     }
 
+    // Always filter by product name
     if (product && product !== 'null' && product !== 'undefined') {
       deleteQuery = deleteQuery.eq("product", product)
     }
