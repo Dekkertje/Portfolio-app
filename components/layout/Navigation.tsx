@@ -83,29 +83,57 @@ export function Navigation() {
     <div className={`flex h-screen flex-col bg-slate-900 dark:bg-slate-950 border-r border-slate-800 dark:border-slate-900 transition-all duration-300 ${
       isCollapsed ? "w-20" : "w-64"
     }`}>
-      {/* Logo & Profile */}
-      <div className="flex h-16 items-center justify-between border-b border-slate-800 dark:border-slate-700 px-4 gap-2">
-        {/* Logo - Left Side */}
+      {/* Logo Section - More Prominent */}
+      <div className="border-b border-slate-800 dark:border-slate-700">
         {isCollapsed ? (
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
-            <TrendingUp className="h-6 w-6 text-white" />
+          <div className="flex h-20 items-center justify-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg">
+              <TrendingUp className="h-7 w-7 text-white" />
+            </div>
           </div>
         ) : (
-          <div className="flex-1">
+          <div className="px-6 py-6">
             <Image
               src="/images/dekkertracker-logo.png"
               alt="DekkerTracker"
-              width={160}
-              height={40}
-              className="h-10 w-auto"
+              width={240}
+              height={60}
+              className="h-auto w-full max-w-[220px]"
               priority
             />
           </div>
         )}
+      </div>
 
-        {/* Profile Avatar - Right Side (always visible when expanded) */}
-        {!isCollapsed && (
-          <Link href="/settings" className="relative w-10 h-10 rounded-full overflow-hidden bg-slate-700 hover:ring-2 hover:ring-indigo-500 transition-all flex-shrink-0">
+      {/* Profile Avatar */}
+      {!isCollapsed && (
+        <div className="px-6 py-4 border-b border-slate-800 dark:border-slate-700">
+          <Link href="/settings" className="flex items-center gap-3 group">
+            <div className="relative w-12 h-12 rounded-full overflow-hidden bg-slate-700 group-hover:ring-2 group-hover:ring-indigo-500 transition-all flex-shrink-0">
+              {avatarUrl ? (
+                <Image
+                  src={avatarUrl}
+                  alt="Profile"
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <User className="w-6 h-6 text-slate-400" />
+                </div>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">Mijn Account</p>
+              <p className="text-xs text-slate-400 truncate">Bekijk profiel</p>
+            </div>
+          </Link>
+        </div>
+      )}
+      {isCollapsed && (
+        <div className="px-3 py-4 border-b border-slate-800 dark:border-slate-700 flex justify-center">
+          <Link href="/settings" className="relative w-10 h-10 rounded-full overflow-hidden bg-slate-700 hover:ring-2 hover:ring-indigo-500 transition-all">
             {avatarUrl ? (
               <Image
                 src={avatarUrl}
@@ -120,8 +148,8 @@ export function Navigation() {
               </div>
             )}
           </Link>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 px-3 py-4">
