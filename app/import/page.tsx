@@ -9,11 +9,30 @@ import { Card, CardHeader } from "@/components/ui/Card"
 import { parseEuropeanNumber, parseDegiroDate, detectTransactionType } from "@/lib/utils"
 import { DashboardLayout } from "@/components/layout/DashboardLayout"
 import { Upload } from "lucide-react"
+import { TickerMappingReview } from "@/components/import/TickerMappingReview"
+import { TickerEditModal } from "@/components/import/TickerEditModal"
+
+type ImportStep = "upload" | "ticker-review" | "importing"
+
+type TickerSuggestion = {
+  isin: string
+  product: string
+  exchange: string | null
+  suggested_ticker: string | null
+  yahoo_symbol: string | null
+  confidence_score: number
+  match_method: string
+  is_approved: boolean
+}
 
 export default function ImportPage() {
+  const [step, setStep] = useState<ImportStep>("upload")
   const [loading, setLoading] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<any[]>([])
+  const [parsedTransactions, setParsedTransactions] = useState<any[]>([])
+  const [tickerSuggestions, setTickerSuggestions] = useState<TickerSuggestion[]>([])
+  const [editingTicker, setEditingTicker] = useState<TickerSuggestion | null>(null)
   const { showToast } = useToast()
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -26,7 +45,8 @@ export default function ImportPage() {
     }
   }
 
-  async function handleImport() {
+  // Step 1: Parse CSV and prepare for ticker review
+  async function handleParseCSV() {
     if (!selectedFile) {
       showToast("Kies eerst een bestand.", "error")
       return
