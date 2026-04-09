@@ -450,6 +450,13 @@ export default function DashboardPage() {
   async function confirmDeletePosition() {
     const { isManual, manualPositionId, isin, product } = deleteConfirm
 
+    console.log(`🔍 confirmDeletePosition called:`, {
+      isManual,
+      manualPositionId,
+      isin,
+      product
+    })
+
     try {
       if (isManual && manualPositionId) {
         // Delete manual position
