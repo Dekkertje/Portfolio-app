@@ -17,11 +17,12 @@ export async function DELETE(request: Request) {
 
     const { searchParams } = new URL(request.url)
     const isin = searchParams.get("isin")
+    const product = searchParams.get("product")
     const portfolio_id = searchParams.get("portfolio_id")
 
-    if (!isin || !portfolio_id) {
+    if (!portfolio_id || (!isin && !product)) {
       return NextResponse.json(
-        { error: "ISIN and portfolio_id required" },
+        { error: "portfolio_id and (isin or product) required" },
         { status: 400 }
       )
     }
@@ -42,13 +43,23 @@ export async function DELETE(request: Request) {
       )
     }
 
-    // Delete all transactions with this ISIN
-    const { data, error } = await supabase
+    // Delete all transactions - match by ISIN AND product name for safety
+    let query = supabase
       .from("transactions")
       .delete()
       .eq("portfolio_id", portfolio_id)
-      .eq("isin", isin)
-      .select()
+
+    // Filter by ISIN if provided
+    if (isin && isin !== 'null' && isin !== 'undefined') {
+      query = query.eq("isin", isin)
+    }
+
+    // Also filter by product name if provided (as backup)
+    if (product && product !== 'null' && product !== 'undefined') {
+      query = query.eq("product", product)
+    }
+
+    const { data, error } = await query.select()
 
     if (error) {
       console.error("Delete transactions error:", error)
@@ -58,11 +69,19 @@ export async function DELETE(request: Request) {
       )
     }
 
-    console.log(`✅ Deleted ${data?.length || 0} transactions for ISIN ${isin}`)
-    
+    console.log(`✅ Deleted ${data?.length || 0} transactions for ISIN ${isin}, product ${product}`)
+    console.log(`   Deleted transaction IDs:`, data?.map(t => t.id))
+
     return NextResponse.json({
       success: true,
       deleted_count: data?.length || 0,
+      deleted_transactions: data?.map(t => ({
+        id: t.id,
+        product: t.product,
+        isin: t.isin,
+        transaction_type: t.transaction_type,
+        quantity: t.quantity
+      })),
       message: `Deleted ${data?.length || 0} transactions`
     })
   } catch (error: any) {

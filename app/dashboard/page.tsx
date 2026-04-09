@@ -460,17 +460,29 @@ export default function DashboardPage() {
           console.error(`❌ Delete failed:`, errorData)
           showToast(`Fout bij verwijderen: ${errorData.error || 'Unknown error'}`, "error")
         }
-      } else if (isin && portfolioId) {
-        // Delete DEGIRO position - delete ALL transactions with this ISIN
-        console.log(`🗑️ Deleting imported position: ${product} (${isin})`)
-        const res = await fetch(`/api/transactions?isin=${isin}&portfolio_id=${portfolioId}`, {
+      } else if (portfolioId && (isin || product)) {
+        // Delete DEGIRO position - delete ALL transactions with this ISIN/product
+        console.log(`🗑️ Deleting imported position: ${product} (ISIN: ${isin || 'N/A'})`)
+
+        // Build query with both ISIN and product for maximum accuracy
+        const params = new URLSearchParams({
+          portfolio_id: portfolioId,
+        })
+        if (isin) params.append('isin', isin)
+        if (product) params.append('product', product)
+
+        const res = await fetch(`/api/transactions?${params.toString()}`, {
           method: "DELETE",
         })
 
         if (res.ok) {
-          console.log(`✅ Successfully deleted all transactions for ${product}`)
-          showToast(`${product} en alle transacties verwijderd!`, "success")
-          loadDashboard()
+          const result = await res.json()
+          console.log(`✅ Successfully deleted ${result.deleted_count} transactions for ${product}`)
+          console.log(`   Deleted:`, result.deleted_transactions)
+          showToast(`${product} verwijderd (${result.deleted_count} transacties)!`, "success")
+
+          // Force reload dashboard to refresh positions
+          await loadDashboard()
         } else {
           const errorData = await res.json()
           console.error(`❌ Delete failed:`, errorData)
