@@ -84,15 +84,22 @@ export function Navigation() {
       isCollapsed ? "w-20" : "w-64"
     }`}>
       {/* Logo & Profile */}
-      <div className="flex h-16 items-center justify-between border-b border-slate-800 dark:border-slate-700 px-6">
-        <div className={`flex items-center gap-3 ${isCollapsed ? "hidden" : ""}`}>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
-            <TrendingUp className="h-6 w-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-white">Portfolio</h1>
-            <p className="text-xs text-slate-400 dark:text-slate-500">Beheer je beleggingen</p>
-          </div>
+      <div className="flex h-16 items-center justify-between border-b border-slate-800 dark:border-slate-700 px-4">
+        <div className={`flex items-center ${isCollapsed ? "justify-center w-full" : "gap-3"}`}>
+          {isCollapsed ? (
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
+              <TrendingUp className="h-6 w-6 text-white" />
+            </div>
+          ) : (
+            <Image
+              src="/images/dekkertracker-logo.png"
+              alt="DekkerTracker"
+              width={200}
+              height={50}
+              className="h-12 w-auto"
+              priority
+            />
+          )}
         </div>
 
         {/* Toggle Button (always visible) */}

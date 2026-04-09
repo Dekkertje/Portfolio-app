@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/Toast"
 import { Button } from "@/components/ui/Button"
 import { TrendingUp, Mail } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -87,11 +88,17 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo & Title */}
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-lg">
-            <TrendingUp className="h-8 w-8 text-indigo-600" />
+          <div className="mx-auto mb-6">
+            <Image
+              src="/images/dekkertracker-logo.png"
+              alt="DekkerTracker"
+              width={400}
+              height={100}
+              className="mx-auto"
+              priority
+            />
           </div>
-          <h1 className="text-4xl font-bold text-white">Portfolio Tracker</h1>
-          <p className="mt-2 text-indigo-100">Beheer je beleggingen met gemak</p>
+          <p className="mt-4 text-xl text-white/90">Beheer je beleggingen met gemak</p>
         </div>
 
         {/* Login Card */}
