@@ -35,38 +35,51 @@ export default function SettingsPage() {
         return
       }
 
-      // First try to get existing profile
-      let { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", session.user.id)
-        .single()
-
-      // If no profile exists, create one
-      if (error && error.code === 'PGRST116') {
-        const { data: newProfile, error: insertError } = await supabase
+      try {
+        // First try to get existing profile
+        let { data, error } = await supabase
           .from("profiles")
-          .insert({
-            id: session.user.id,
-            full_name: null,
-            avatar_url: null
-          })
-          .select()
-          .single()
+          .select("*")
+          .eq("id", session.user.id)
+          .maybeSingle() // Use maybeSingle instead of single to avoid error on no rows
 
-        if (newProfile) {
+        // If no profile exists, create one
+        if (!data) {
+          console.log("No profile found, creating one...")
+
+          const { data: newProfile, error: insertError } = await supabase
+            .from("profiles")
+            .upsert({
+              id: session.user.id,
+              full_name: session.user.user_metadata?.full_name || session.user.email,
+              avatar_url: session.user.user_metadata?.avatar_url || null
+            }, {
+              onConflict: 'id'
+            })
+            .select()
+            .single()
+
+          if (insertError) {
+            console.error("Error creating profile:", insertError)
+            throw insertError
+          }
+
           data = newProfile
+          console.log("Profile created:", data)
         }
-      }
 
-      if (data) {
-        setProfile({
-          id: data.id,
-          email: session.user.email || "",
-          full_name: data.full_name,
-          avatar_url: data.avatar_url
-        })
-        setFullName(data.full_name || "")
+        if (data) {
+          setProfile({
+            id: data.id,
+            email: session.user.email || "",
+            full_name: data.full_name,
+            avatar_url: data.avatar_url
+          })
+          setFullName(data.full_name || "")
+        }
+      } catch (error) {
+        console.error("Error loading profile:", error)
+        showToast("Error loading profile", "error")
       }
 
       setLoading(false)
