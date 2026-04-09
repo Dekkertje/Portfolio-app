@@ -33,15 +33,15 @@ INSERT INTO ticker_mappings (
   ('US75734B1008', 'REDDIT INC CLASS A', 'RDDT', 'RDDT', 1.0, 'manual', true),
   ('US88160R1014', 'TESLA INC', 'TSLA', 'TSLA', 1.0, 'manual', true),
 
-  -- UK Stock
-  ('GB00BMHVL512', 'KLARNA GROUP PLC', 'KLRN.L', 'KLRN.L', 1.0, 'manual', true),
+  -- UK Stock (Note: Klarna is not publicly traded yet, use placeholder)
+  ('GB00BMHVL512', 'KLARNA GROUP PLC', 'KLRN', 'KLRN.L', 0.5, 'manual', true),
 
-  -- European ETFs
-  ('IE00BZ4BMM98', 'INVESCO EURO STOXX HI DIV LOW VLTY UCITS ETF DIST', 'EUHD', 'EUHD.DE', 1.0, 'manual', true),
-  ('IE0031442068', 'ISHARES CORE S&P 500 UCITS ETF USD (DIST)', 'CSPX', 'CSPX.L', 1.0, 'manual', true),
-  ('DE000A0F5UF5', 'ISHARES NASDAQ-100 UCITS (DE) ETF', 'EXXT', 'EXXT.DE', 1.0, 'manual', true),
-  ('IE00BMC38736', 'VANECK SEMICONDUCTOR UCITS ETF USD A', 'SMH', 'SMH.L', 1.0, 'manual', true),
-  ('IE00B3RBWM25', 'VANGUARD FTSE ALL-WORLD UCITS ETF USD DIS', 'VWRL', 'VWRL.L', 1.0, 'manual', true);
+  -- European ETFs (CORRECTED - use Amsterdam exchange where possible)
+  ('IE00BZ4BMM98', 'INVESCO EURO STOXX HI DIV LOW VLTY UCITS ETF DIST', 'EUHD', 'EUHD.AS', 1.0, 'manual', true),
+  ('IE0031442068', 'ISHARES CORE S&P 500 UCITS ETF USD (DIST)', 'CSPX', 'CSPX.AS', 1.0, 'manual', true),
+  ('DE000A0F5UF5', 'ISHARES NASDAQ-100 UCITS (DE) ETF', 'SXRV', 'SXRV.DE', 1.0, 'manual', true),
+  ('IE00BMC38736', 'VANECK SEMICONDUCTOR UCITS ETF USD A', 'SMH', 'SMH.AS', 1.0, 'manual', true),
+  ('IE00B3RBWM25', 'VANGUARD FTSE ALL-WORLD UCITS ETF USD DIS', 'VWRL', 'VWRL.AS', 1.0, 'manual', true);
 
 -- Verify mappings
 SELECT 
