@@ -1,0 +1,53 @@
+-- ============================================================================
+-- ADD MISSING TICKER MAPPINGS
+-- Run this in Supabase SQL Editor
+-- ============================================================================
+
+-- Insert all missing ticker mappings
+INSERT INTO ticker_mappings (
+  isin, 
+  product_name, 
+  suggested_ticker, 
+  yahoo_symbol, 
+  confidence_score, 
+  match_method, 
+  is_approved
+) VALUES
+  -- Dutch Stocks
+  ('NL0012817175', 'ALFEN NV', 'ALFEN', 'ALFEN.AS', 1.0, 'manual', true),
+  ('NL0013654783', 'PROSUS NV CLASS N', 'PRX', 'PRX.AS', 1.0, 'manual', true),
+  ('NL0010408704', 'VANECK WORLD EQUAL WEIGHT SCREENED UCITS ETF', 'TGET', 'TGET.AS', 1.0, 'manual', true),
+  
+  -- US Stocks
+  ('US6311031081', 'NASDAQ INC', 'NDAQ', 'NDAQ', 1.0, 'manual', true),
+  ('US63942X1063', 'NAVITAS SEMICONDUCTOR CORP', 'NVTS', 'NVTS', 1.0, 'manual', true),
+  ('US75734B1008', 'REDDIT INC CLASS A', 'RDDT', 'RDDT', 1.0, 'manual', true),
+  ('US88160R1014', 'TESLA INC', 'TSLA', 'TSLA', 1.0, 'manual', true),
+  
+  -- UK Stock
+  ('GB00BMHVL512', 'KLARNA GROUP PLC', 'KLRN.L', 'KLRN.L', 1.0, 'manual', true),
+  
+  -- European ETFs
+  ('IE00BZ4BMM98', 'INVESCO EURO STOXX HI DIV LOW VLTY UCITS ETF DIST', 'EUHD', 'EUHD.DE', 1.0, 'manual', true),
+  ('IE0031442068', 'ISHARES CORE S&P 500 UCITS ETF USD (DIST)', 'CSPX', 'CSPX.L', 1.0, 'manual', true),
+  ('DE000A0F5UF5', 'ISHARES NASDAQ-100 UCITS (DE) ETF', 'EXXT', 'EXXT.DE', 1.0, 'manual', true),
+  ('IE00BMC38736', 'VANECK SEMICONDUCTOR UCITS ETF USD A', 'SMH', 'SMH.L', 1.0, 'manual', true),
+  ('IE00B3RBWM25', 'VANGUARD FTSE ALL-WORLD UCITS ETF USD DIS', 'VWRL', 'VWRL.L', 1.0, 'manual', true)
+  
+ON CONFLICT (isin) DO UPDATE SET
+  yahoo_symbol = EXCLUDED.yahoo_symbol,
+  suggested_ticker = EXCLUDED.suggested_ticker,
+  is_approved = EXCLUDED.is_approved,
+  confidence_score = EXCLUDED.confidence_score,
+  match_method = EXCLUDED.match_method;
+
+-- Verify mappings
+SELECT 
+  product_name,
+  isin,
+  yahoo_symbol,
+  is_approved,
+  '✅ Added' as status
+FROM ticker_mappings
+WHERE is_approved = true
+ORDER BY product_name;
