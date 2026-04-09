@@ -42,7 +42,7 @@ export function Navigation() {
         .from("profiles")
         .select("avatar_url")
         .eq("id", session.user.id)
-        .single()
+        .maybeSingle() // Use maybeSingle to avoid error when no profile exists
 
       if (data?.avatar_url) {
         setAvatarUrl(data.avatar_url)
