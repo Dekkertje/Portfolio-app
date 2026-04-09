@@ -460,10 +460,10 @@ export default function DashboardPage() {
           console.error(`❌ Delete failed:`, errorData)
           showToast(`Fout bij verwijderen: ${errorData.error || 'Unknown error'}`, "error")
         }
-      } else if (isin) {
+      } else if (isin && portfolioId) {
         // Delete DEGIRO position - delete ALL transactions with this ISIN
         console.log(`🗑️ Deleting imported position: ${product} (${isin})`)
-        const res = await fetch(`/api/transactions?isin=${isin}&portfolio_id=${portfolio?.id}`, {
+        const res = await fetch(`/api/transactions?isin=${isin}&portfolio_id=${portfolioId}`, {
           method: "DELETE",
         })
 
