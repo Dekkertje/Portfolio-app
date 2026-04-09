@@ -110,8 +110,13 @@ export async function GET(request: Request) {
       positions: diagnosis.sort((a, b) => {
         // Sort: problems first
         if (a.status !== b.status) {
-          const order = { '❌ NO PRICE': 0, '⚠️ STALE': 1, '⚠️ NO MAPPING': 2, '✅ OK': 3 }
-          return order[a.status] - order[b.status]
+          const order: Record<string, number> = {
+            '❌ NO PRICE': 0,
+            '⚠️ STALE': 1,
+            '⚠️ NO MAPPING': 2,
+            '✅ OK': 3
+          }
+          return (order[a.status] || 999) - (order[b.status] || 999)
         }
         return a.product.localeCompare(b.product)
       })
