@@ -131,20 +131,14 @@ export default function DashboardPage() {
       const latestPriceMap: Record<string, Price> = {}
 
       if (!priceError && prices) {
-        // eslint-disable-next-line no-console
-        console.log(`📊 Loaded ${prices.length} price records from database`)
+        // Prices loaded successfully (server-side logging only)
         for (const price of prices as Price[]) {
           const key = `${price.product}__${price.isin || ""}`
 
           if (!latestPriceMap[key]) {
             latestPriceMap[key] = price
-            // eslint-disable-next-line no-console
-            console.log(`  💰 ${price.product}: €${price.price} | prev_close: ${price.previous_close || 'NULL'} (${price.source}, ${price.price_date})`)
           }
         }
-      } else {
-        // eslint-disable-next-line no-console
-        console.log('⚠️  No prices loaded from database')
       }
 
       const grouped: Record<string, Position> = {}
@@ -433,13 +427,6 @@ export default function DashboardPage() {
   }
 
   function handleDeletePosition(isin: string, product: string, isManual: boolean, manualPositionId?: string) {
-    console.log(`🔍 Delete position clicked:`, {
-      product,
-      isin,
-      isManual,
-      manualPositionId
-    })
-
     setDeleteConfirm({
       show: true,
       isin,
@@ -452,35 +439,22 @@ export default function DashboardPage() {
   async function confirmDeletePosition() {
     const { isManual, manualPositionId, isin, product } = deleteConfirm
 
-    console.log(`🔍 confirmDeletePosition called:`, {
-      isManual,
-      manualPositionId,
-      isin,
-      product
-    })
-
     try {
       if (isManual && manualPositionId) {
         // Delete manual position
-        console.log(`🗑️ Deleting manual position: ${product} (${manualPositionId})`)
         const res = await fetch(`/api/manual-positions?id=${manualPositionId}`, {
           method: "DELETE",
         })
 
         if (res.ok) {
-          console.log(`✅ Successfully deleted ${product}`)
           showToast(`${product} verwijderd!`, "success")
           loadDashboard()
         } else {
           const errorData = await res.json()
-          console.error(`❌ Delete failed:`, errorData)
           showToast(`Fout bij verwijderen: ${errorData.error || 'Unknown error'}`, "error")
         }
       } else if (portfolioId && (isin || product)) {
         // Delete DEGIRO position - delete ALL transactions with this ISIN/product
-        console.log(`🗑️ Deleting imported position: ${product} (ISIN: ${isin || 'N/A'})`)
-
-        // Build query with both ISIN and product for maximum accuracy
         const params = new URLSearchParams({
           portfolio_id: portfolioId,
         })
@@ -493,22 +467,18 @@ export default function DashboardPage() {
 
         if (res.ok) {
           const result = await res.json()
-          console.log(`✅ Successfully deleted ${result.deleted_count} transactions for ${product}`)
-          console.log(`   Deleted:`, result.deleted_transactions)
           showToast(`${product} verwijderd (${result.deleted_count} transacties)!`, "success")
 
           // Force reload dashboard to refresh positions
           await loadDashboard()
         } else {
           const errorData = await res.json()
-          console.error(`❌ Delete failed:`, errorData)
           showToast(`Fout bij verwijderen: ${errorData.error || 'Unknown error'}`, "error")
         }
       } else {
         showToast("Kan positie niet verwijderen: ontbrekende gegevens", "error")
       }
     } catch (error: any) {
-      console.error("Delete error:", error)
       showToast(`Fout bij verwijderen: ${error.message || 'Unknown error'}`, "error")
     }
 
@@ -533,28 +503,7 @@ export default function DashboardPage() {
 
       const data = await res.json()
 
-      if (!silent) {
-        // eslint-disable-next-line no-console
-        console.log("📦 API Response data:", data)
-
-        if (data.dividendStats && data.dividendStats.length > 0) {
-          // eslint-disable-next-line no-console
-          console.log("💰 Dividend Data Found:")
-          data.dividendStats.forEach((stat: any) => {
-            // eslint-disable-next-line no-console
-            console.log(`   ${stat.product}: €${stat.dividend.toFixed(2)}/year (${stat.frequency})`)
-          })
-        }
-
-        if (data.errors && data.errors.length > 0) {
-          // eslint-disable-next-line no-console
-          console.error("🚨 Price refresh errors:")
-          data.errors.forEach((err: string) => {
-            // eslint-disable-next-line no-console
-            console.error("  ", err)
-          })
-        }
-      }
+      // Price refresh completed (sensitive data not logged to console)
 
       if (!res.ok) {
         if (!silent) {
@@ -630,32 +579,14 @@ export default function DashboardPage() {
 
       if (hasPreviousClose) {
         positionsWithPreviousClose++
-        // Log ALL positions with previous close data - comparing to DEGIRO
-        // eslint-disable-next-line no-console
-        console.log(`💵 ${p.product}: qty=${p.quantity}, current=€${p.currentPrice.toFixed(2)}, prev=€${p.previousClose!.toFixed(2)}, change=€${p.dayChange!.toFixed(2)}, total=€${dailyChange.toFixed(2)}`)
-
-        // Calculate what previous_close SHOULD be based on DEGIRO data
-        // For debugging: if we know DEGIRO's W/V, what would previous_close need to be?
-        // Formula: previous_close = current - (DEGIRO_WV / quantity)
-        // eslint-disable-next-line no-console
-        console.log(`   📊 To match DEGIRO, if W/V should be different, recalculate: currentPrice=${p.currentPrice.toFixed(2)}, qty=${p.quantity}`)
       } else {
         positionsWithoutPreviousClose++
-        // eslint-disable-next-line no-console
-        console.log(`⚠️  ${p.product}: NO previous_close data (qty=${p.quantity}, value=€${p.currentValue.toFixed(2)})`)
       }
 
       return sum + dailyChange
     }, 0)
 
-    // eslint-disable-next-line no-console
-    console.log(`\n📊 Daily P&L Summary:`)
-    // eslint-disable-next-line no-console
-    console.log(`   ✅ Positions with previous_close: ${positionsWithPreviousClose}`)
-    // eslint-disable-next-line no-console
-    console.log(`   ⚠️  Positions WITHOUT previous_close: ${positionsWithoutPreviousClose}`)
-    // eslint-disable-next-line no-console
-    console.log(`   💰 Total Daily P&L: €${totalDailyPnL.toFixed(2)}\n`)
+    // Daily P&L calculated (server-side logging only)
 
     const totalDailyPnLPercent = totalValue > 0 ? (totalDailyPnL / totalValue) * 100 : 0
 
