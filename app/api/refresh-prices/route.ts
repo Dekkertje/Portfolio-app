@@ -232,13 +232,31 @@ export async function POST() {
 
       // PRIORITY 1: Check ticker_mappings table (approved mappings from import)
       if (item.isin || item.product) {
-        const { data: tickerMapping } = await supabase
-          .from("ticker_mappings")
-          .select("*")
-          .eq("is_approved", true)
-          .or(`isin.eq.${item.isin || 'NULL'},product_name.eq.${item.product}`)
-          .limit(1)
-          .maybeSingle()
+        let tickerMapping = null
+
+        // Try ISIN match first
+        if (item.isin) {
+          const { data } = await supabase
+            .from("ticker_mappings")
+            .select("*")
+            .eq("is_approved", true)
+            .eq("isin", item.isin)
+            .limit(1)
+
+          tickerMapping = data?.[0]
+        }
+
+        // If no ISIN match, try product name match
+        if (!tickerMapping && item.product) {
+          const { data } = await supabase
+            .from("ticker_mappings")
+            .select("*")
+            .eq("is_approved", true)
+            .eq("product_name", item.product)
+            .limit(1)
+
+          tickerMapping = data?.[0]
+        }
 
         if (tickerMapping) {
           console.log(`✅ Using approved ticker mapping: ${tickerMapping.product_name} → ${tickerMapping.yahoo_symbol}`)

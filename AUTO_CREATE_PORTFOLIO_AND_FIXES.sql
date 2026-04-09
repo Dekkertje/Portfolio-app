@@ -75,28 +75,47 @@ ALTER TABLE manual_positions
 -- Enable RLS if not already enabled
 ALTER TABLE manual_positions ENABLE ROW LEVEL SECURITY;
 
--- Drop and recreate DELETE policy
-DROP POLICY IF EXISTS "Users can delete own manual positions" ON manual_positions;
-CREATE POLICY "Users can delete own manual positions" 
-  ON manual_positions FOR DELETE 
-  TO authenticated 
+-- Drop and recreate ALL policies for manual_positions
+DROP POLICY IF EXISTS "Users can view own manual positions" ON manual_positions;
+CREATE POLICY "Users can view own manual positions"
+  ON manual_positions FOR SELECT
+  TO authenticated
   USING (
     portfolio_id IN (
       SELECT id FROM portfolios WHERE user_id = auth.uid()
     )
   );
 
--- Also ensure UPDATE policy exists
+DROP POLICY IF EXISTS "Users can insert own manual positions" ON manual_positions;
+CREATE POLICY "Users can insert own manual positions"
+  ON manual_positions FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    portfolio_id IN (
+      SELECT id FROM portfolios WHERE user_id = auth.uid()
+    )
+  );
+
 DROP POLICY IF EXISTS "Users can update own manual positions" ON manual_positions;
-CREATE POLICY "Users can update own manual positions" 
-  ON manual_positions FOR UPDATE 
-  TO authenticated 
+CREATE POLICY "Users can update own manual positions"
+  ON manual_positions FOR UPDATE
+  TO authenticated
   USING (
     portfolio_id IN (
       SELECT id FROM portfolios WHERE user_id = auth.uid()
     )
   )
   WITH CHECK (
+    portfolio_id IN (
+      SELECT id FROM portfolios WHERE user_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "Users can delete own manual positions" ON manual_positions;
+CREATE POLICY "Users can delete own manual positions"
+  ON manual_positions FOR DELETE
+  TO authenticated
+  USING (
     portfolio_id IN (
       SELECT id FROM portfolios WHERE user_id = auth.uid()
     )
