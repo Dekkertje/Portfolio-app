@@ -84,38 +84,28 @@ export function Navigation() {
       isCollapsed ? "w-20" : "w-64"
     }`}>
       {/* Logo & Profile */}
-      <div className="flex h-16 items-center justify-between border-b border-slate-800 dark:border-slate-700 px-4">
-        <div className={`flex items-center ${isCollapsed ? "justify-center w-full" : "gap-3"}`}>
-          {isCollapsed ? (
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
-              <TrendingUp className="h-6 w-6 text-white" />
-            </div>
-          ) : (
+      <div className="flex h-16 items-center justify-between border-b border-slate-800 dark:border-slate-700 px-4 gap-2">
+        {/* Logo - Left Side */}
+        {isCollapsed ? (
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
+            <TrendingUp className="h-6 w-6 text-white" />
+          </div>
+        ) : (
+          <div className="flex-1">
             <Image
               src="/images/dekkertracker-logo.png"
               alt="DekkerTracker"
-              width={200}
-              height={50}
-              className="h-12 w-auto"
+              width={160}
+              height={40}
+              className="h-10 w-auto"
               priority
             />
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Toggle Button (always visible) */}
-        <button
-          onClick={toggleSidebar}
-          className={`p-2 rounded-lg hover:bg-slate-800 dark:hover:bg-slate-900 text-slate-400 hover:text-white transition-colors ${
-            isCollapsed ? "mx-auto" : ""
-          }`}
-          title={isCollapsed ? "Uitklappen" : "Inklappen"}
-        >
-          {isCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
-        </button>
-
-        {/* Profile Avatar (hidden when collapsed) */}
+        {/* Profile Avatar - Right Side (always visible when expanded) */}
         {!isCollapsed && (
-          <Link href="/settings" className="relative w-10 h-10 rounded-full overflow-hidden bg-slate-700 hover:ring-2 hover:ring-indigo-500 transition-all">
+          <Link href="/settings" className="relative w-10 h-10 rounded-full overflow-hidden bg-slate-700 hover:ring-2 hover:ring-indigo-500 transition-all flex-shrink-0">
             {avatarUrl ? (
               <Image
                 src={avatarUrl}
@@ -198,6 +188,24 @@ export function Navigation() {
             <>
               <EyeOff className="h-5 w-5" />
               {!isCollapsed && "Privacy Aan"}
+            </>
+          )}
+        </button>
+        <button
+          onClick={toggleSidebar}
+          title={isCollapsed ? "Uitklappen" : "Inklappen"}
+          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 dark:text-slate-400 transition-all hover:bg-slate-800 dark:hover:bg-slate-900 hover:text-white ${
+            isCollapsed ? "justify-center" : ""
+          }`}
+        >
+          {isCollapsed ? (
+            <>
+              <ChevronRight className="h-5 w-5" />
+            </>
+          ) : (
+            <>
+              <ChevronLeft className="h-5 w-5" />
+              <span>Inklappen</span>
             </>
           )}
         </button>
