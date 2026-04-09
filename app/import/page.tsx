@@ -12,8 +12,6 @@ import { Upload } from "lucide-react"
 import { TickerMappingReview } from "@/components/import/TickerMappingReview"
 import { TickerEditModal } from "@/components/import/TickerEditModal"
 
-type ImportStep = "upload" | "ticker-review" | "importing"
-
 type TickerSuggestion = {
   isin: string
   product: string
@@ -26,11 +24,13 @@ type TickerSuggestion = {
 }
 
 export default function ImportPage() {
-  const [step, setStep] = useState<ImportStep>("upload")
   const [loading, setLoading] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<any[]>([])
-  const [parsedTransactions, setParsedTransactions] = useState<any[]>([])
+  const [importComplete, setImportComplete] = useState(false)
+  const [importedCount, setImportedCount] = useState(0)
+  const [uniqueProducts, setUniqueProducts] = useState<{isin: string, product: string, exchange: string | null}[]>([])
+  const [showTickerReview, setShowTickerReview] = useState(false)
   const [tickerSuggestions, setTickerSuggestions] = useState<TickerSuggestion[]>([])
   const [editingTicker, setEditingTicker] = useState<TickerSuggestion | null>(null)
   const { showToast } = useToast()
@@ -39,14 +39,122 @@ export default function ImportPage() {
     const file = e.target.files?.[0] || null
     setSelectedFile(file)
     setPreview([])
+    setImportComplete(false)
+    setShowTickerReview(false)
 
     if (file) {
       showToast(`Bestand geselecteerd: ${file.name}`, "info")
     }
   }
 
-  // Step 1: Parse CSV and prepare for ticker review
-  async function handleParseCSV() {
+  async function handleStartTickerReview() {
+    try {
+      setLoading(true)
+      const res = await fetch("/api/ticker-mapping", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ positions: uniqueProducts })
+      })
+
+      const data = await res.json()
+      setTickerSuggestions(data.suggestions || [])
+      setShowTickerReview(true)
+    } catch (error) {
+      showToast("Fout bij ophalen ticker suggesties", "error")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function handleSkipTickerReview() {
+    window.location.href = "/dashboard"
+  }
+
+  async function handleApproveTicker(suggestion: TickerSuggestion) {
+    try {
+      const supabase = await import("@/lib/supabase/client").then(m => m.supabase)
+      const { error } = await supabase
+        .from("ticker_mappings")
+        .upsert({
+          isin: suggestion.isin,
+          product_name: suggestion.product,
+          exchange: suggestion.exchange,
+          yahoo_symbol: suggestion.yahoo_symbol,
+          suggested_ticker: suggestion.suggested_ticker,
+          confidence_score: suggestion.confidence_score,
+          match_method: suggestion.match_method,
+          is_approved: true,
+          approved_by: (await supabase.auth.getUser()).data.user?.id,
+          approved_at: new Date().toISOString()
+        }, {
+          onConflict: "isin,product_name"
+        })
+
+      if (error) throw error
+
+      setTickerSuggestions(prev =>
+        prev.map(s =>
+          s.isin === suggestion.isin ? { ...s, is_approved: true } : s
+        )
+      )
+      showToast(`${suggestion.product} goedgekeurd!`, "success")
+    } catch (error) {
+      showToast("Fout bij opslaan ticker", "error")
+    }
+  }
+
+  function handleEditTicker(suggestion: TickerSuggestion) {
+    setEditingTicker(suggestion)
+  }
+
+  function handleSkipTicker(suggestion: TickerSuggestion) {
+    showToast(`${suggestion.product} overgeslagen`, "info")
+  }
+
+  async function handleSaveEditedTicker(yahooSymbol: string) {
+    if (!editingTicker) return
+
+    try {
+      const supabase = await import("@/lib/supabase/client").then(m => m.supabase)
+      const { error } = await supabase
+        .from("ticker_mappings")
+        .upsert({
+          isin: editingTicker.isin,
+          product_name: editingTicker.product,
+          exchange: editingTicker.exchange,
+          yahoo_symbol: yahooSymbol,
+          suggested_ticker: yahooSymbol.split(".")[0],
+          confidence_score: 1.0,
+          match_method: "manual",
+          is_approved: true,
+          approved_by: (await supabase.auth.getUser()).data.user?.id,
+          approved_at: new Date().toISOString()
+        }, {
+          onConflict: "isin,product_name"
+        })
+
+      if (error) throw error
+
+      setTickerSuggestions(prev =>
+        prev.map(s =>
+          s.isin === editingTicker.isin
+            ? { ...s, yahoo_symbol: yahooSymbol, suggested_ticker: yahooSymbol.split(".")[0], is_approved: true }
+            : s
+        )
+      )
+
+      showToast("Ticker opgeslagen!", "success")
+      setEditingTicker(null)
+    } catch (error) {
+      showToast("Fout bij opslaan ticker", "error")
+    }
+  }
+
+  function handleContinueAfterReview() {
+    window.location.href = "/dashboard"
+  }
+
+  async function handleImport() {
     if (!selectedFile) {
       showToast("Kies eerst een bestand.", "error")
       return
@@ -192,11 +300,24 @@ export default function ImportPage() {
         console.log("Insert error:", insertError)
         showToast("Fout bij opslaan: " + insertError.message, "error")
       } else {
+        // Extract unique products for ticker review
+        const uniqueProductsMap = new Map<string, {isin: string, product: string, exchange: string | null}>()
+        transactionsToInsert.forEach(t => {
+          const key = `${t.isin}_${t.product}`
+          if (!uniqueProductsMap.has(key)) {
+            uniqueProductsMap.set(key, {
+              isin: t.isin || "",
+              product: t.product,
+              exchange: null // We'll need to extract this from CSV in future
+            })
+          }
+        })
+        const products = Array.from(uniqueProductsMap.values())
+
+        setImportedCount(transactionsToInsert.length)
+        setUniqueProducts(products)
+        setImportComplete(true)
         showToast(`${transactionsToInsert.length} transacties succesvol geïmporteerd!`, "success")
-        // Redirect to dashboard after successful import
-        setTimeout(() => {
-          window.location.href = "/dashboard"
-        }, 1500)
       }
     } catch (error: any) {
       // eslint-disable-next-line no-console
@@ -255,7 +376,66 @@ export default function ImportPage() {
           </div>
         </Card>
 
-        {preview.length > 0 && (
+        {/* Success Screen with Ticker Review Option */}
+        {importComplete && !showTickerReview && (
+          <Card className="border-green-200 bg-green-50">
+            <div className="p-8 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="mb-2 text-2xl font-bold text-green-900">Import Succesvol!</h2>
+              <p className="mb-6 text-green-700">
+                {importedCount} transacties geïmporteerd van {uniqueProducts.length} unieke aandelen.
+              </p>
+
+              <div className="mb-6 rounded-lg bg-white p-4">
+                <p className="mb-4 text-sm text-slate-700">
+                  💡 <strong>Tip:</strong> Wil je controleren of de juiste Yahoo Finance tickers zijn gekoppeld?
+                  Dit helpt bij het ophalen van correcte koersen.
+                </p>
+                <div className="flex justify-center gap-4">
+                  <Button
+                    onClick={handleStartTickerReview}
+                    disabled={loading}
+                    variant="primary"
+                  >
+                    {loading ? "Laden..." : "Ja, Controleer Tickers"}
+                  </Button>
+                  <Button onClick={handleSkipTickerReview} variant="secondary">
+                    Nee, Ga naar Dashboard
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Ticker Review Screen */}
+        {showTickerReview && (
+          <TickerMappingReview
+            suggestions={tickerSuggestions}
+            onApprove={handleApproveTicker}
+            onEdit={handleEditTicker}
+            onSkip={handleSkipTicker}
+            onContinue={handleContinueAfterReview}
+          />
+        )}
+
+        {/* Ticker Edit Modal */}
+        {editingTicker && (
+          <TickerEditModal
+            isOpen={!!editingTicker}
+            onClose={() => setEditingTicker(null)}
+            isin={editingTicker.isin}
+            product={editingTicker.product}
+            currentTicker={editingTicker.yahoo_symbol}
+            onSave={handleSaveEditedTicker}
+          />
+        )}
+
+        {preview.length > 0 && !importComplete && (
           <Card>
             <CardHeader
               title="Preview Eerste Regels"
