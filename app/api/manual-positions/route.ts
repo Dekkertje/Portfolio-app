@@ -65,7 +65,47 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ positions: data || [] })
+    // Enrich with current prices from Yahoo Finance
+    const enrichedPositions = await Promise.all(
+      (data || []).map(async (position) => {
+        try {
+          // Fetch current price from Yahoo Finance
+          const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${position.yahoo_symbol}?interval=1d&range=1d`
+          const yahooRes = await fetch(yahooUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0' }
+          })
+
+          if (yahooRes.ok) {
+            const yahooData = await yahooRes.json()
+            const quote = yahooData?.chart?.result?.[0]?.meta
+            const currentPrice = quote?.regularMarketPrice || quote?.previousClose || 0
+
+            return {
+              ...position,
+              current_price: currentPrice,
+              current_value: currentPrice * position.quantity,
+              unrealized_pnl: (currentPrice * position.quantity) - (position.average_price * position.quantity),
+              unrealized_pnl_pct: position.average_price > 0
+                ? ((currentPrice - position.average_price) / position.average_price) * 100
+                : 0
+            }
+          }
+        } catch (err) {
+          console.error(`Error fetching price for ${position.yahoo_symbol}:`, err)
+        }
+
+        // Return position without price data if fetch failed
+        return {
+          ...position,
+          current_price: 0,
+          current_value: 0,
+          unrealized_pnl: 0,
+          unrealized_pnl_pct: 0
+        }
+      })
+    )
+
+    return NextResponse.json({ positions: enrichedPositions })
   } catch (error: any) {
     console.error("Error fetching manual positions:", error)
     return NextResponse.json({ error: error.message }, { status: 500 })
