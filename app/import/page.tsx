@@ -365,7 +365,7 @@ export default function ImportPage() {
               total_quantity: quantity,
               total_value: valueEur,
               transaction_count: 1,
-              currency: t.local_currency || "EUR"
+              currency: "EUR" // Default to EUR as value_eur is always in EUR
             })
           }
         })
