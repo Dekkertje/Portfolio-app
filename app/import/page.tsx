@@ -349,18 +349,21 @@ export default function ImportPage() {
           const key = `${t.isin}_${t.product}`
           const existing = uniqueProductsMap.get(key)
 
+          const quantity = typeof t.quantity === 'number' ? t.quantity : parseFloat(t.quantity) || 0
+          const valueEur = typeof t.value_eur === 'number' ? t.value_eur : parseFloat(t.value_eur) || 0
+
           if (existing) {
             // Aggregate data
-            existing.total_quantity += parseFloat(t.quantity) || 0
-            existing.total_value += parseFloat(t.value_eur) || 0
+            existing.total_quantity += quantity
+            existing.total_value += valueEur
             existing.transaction_count += 1
           } else {
             uniqueProductsMap.set(key, {
               isin: t.isin || "",
               product: t.product,
               exchange: null, // We'll need to extract this from CSV in future
-              total_quantity: parseFloat(t.quantity) || 0,
-              total_value: parseFloat(t.value_eur) || 0,
+              total_quantity: quantity,
+              total_value: valueEur,
               transaction_count: 1,
               currency: t.local_currency || "EUR"
             })
