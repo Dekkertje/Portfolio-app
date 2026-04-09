@@ -299,6 +299,8 @@ export default function DashboardPage() {
               : undefined,
             totalDividendsReceived,
             nextEarningsDate: securityData?.nextEarningsDate,
+            isManual: p.isManual || false,  // ← CRITICAL FIX!
+            manualPositionId: p.manualPositionId,  // ← CRITICAL FIX!
           }
         })
         .filter(Boolean) as Position[]
