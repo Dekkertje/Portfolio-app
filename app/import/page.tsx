@@ -32,7 +32,14 @@ export default function ImportPage() {
   const [preview, setPreview] = useState<any[]>([])
   const [importComplete, setImportComplete] = useState(false)
   const [importedCount, setImportedCount] = useState(0)
-  const [uniqueProducts, setUniqueProducts] = useState<{isin: string, product: string, exchange: string | null}[]>([])
+  const [uniqueProducts, setUniqueProducts] = useState<{
+    isin: string
+    product: string
+    exchange: string | null
+    total_quantity?: number
+    avg_purchase_price?: number
+    currency?: string
+  }[]>([])
   const [showTickerReview, setShowTickerReview] = useState(false)
   const [tickerSuggestions, setTickerSuggestions] = useState<TickerSuggestion[]>([])
   const [editingTicker, setEditingTicker] = useState<TickerSuggestion | null>(null)
