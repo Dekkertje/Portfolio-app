@@ -460,10 +460,24 @@ export default function DashboardPage() {
           console.error(`❌ Delete failed:`, errorData)
           showToast(`Fout bij verwijderen: ${errorData.error || 'Unknown error'}`, "error")
         }
+      } else if (isin) {
+        // Delete DEGIRO position - delete ALL transactions with this ISIN
+        console.log(`🗑️ Deleting imported position: ${product} (${isin})`)
+        const res = await fetch(`/api/transactions?isin=${isin}&portfolio_id=${portfolio?.id}`, {
+          method: "DELETE",
+        })
+
+        if (res.ok) {
+          console.log(`✅ Successfully deleted all transactions for ${product}`)
+          showToast(`${product} en alle transacties verwijderd!`, "success")
+          loadDashboard()
+        } else {
+          const errorData = await res.json()
+          console.error(`❌ Delete failed:`, errorData)
+          showToast(`Fout bij verwijderen: ${errorData.error || 'Unknown error'}`, "error")
+        }
       } else {
-        // For DEGIRO positions, we can't actually delete them from transactions
-        // But we could add a "hidden" flag if needed
-        showToast("DEGIRO posities kunnen niet verwijderd worden. Importeer nieuwe transacties om te updaten.", "info")
+        showToast("Kan positie niet verwijderen: ontbrekende gegevens", "error")
       }
     } catch (error: any) {
       console.error("Delete error:", error)
