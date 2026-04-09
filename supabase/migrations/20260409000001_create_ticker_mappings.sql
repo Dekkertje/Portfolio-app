@@ -53,10 +53,5 @@ CREATE TRIGGER set_ticker_mappings_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
--- Comment
-COMMENT ON TABLE public.ticker_mappings IS 'Stores AI-suggested ticker mappings with user approval for CSV imports';
-COMMENT ON COLUMN public.ticker_mappings.confidence_score IS 'Match confidence: 1.00 = exact ISIN match, 0.70-0.95 = fuzzy match, 0.00 = manual';
-COMMENT ON COLUMN public.ticker_mappings.match_method IS 'How ticker was matched: exact_isin, fuzzy_name, manual';
-
 -- Verification
 SELECT 'Ticker Mappings Table Created' as status, count(*) as existing_mappings FROM public.ticker_mappings;
