@@ -82,16 +82,52 @@ export async function DELETE(request: Request) {
     }
 
     if (!existingTransactions || existingTransactions.length === 0) {
-      console.warn(`⚠️ No transactions found matching criteria!`)
+      console.warn(`⚠️ No exact match found. Trying alternative queries...`)
+
+      // Try fetching ALL transactions for this portfolio to help debug
+      const { data: allTransactions } = await supabase
+        .from("transactions")
+        .select("id, product, isin, transaction_type, quantity")
+        .eq("portfolio_id", portfolio_id)
+        .limit(100)
+
+      console.log(`📋 Total transactions in portfolio: ${allTransactions?.length || 0}`)
+
+      if (allTransactions && allTransactions.length > 0) {
+        // Show unique products
+        const uniqueProducts = [...new Set(allTransactions.map(t => t.product))]
+        const uniqueISINs = [...new Set(allTransactions.map(t => t.isin).filter(Boolean))]
+
+        console.log(`   Unique products in DB:`, uniqueProducts.slice(0, 10))
+        console.log(`   Unique ISINs in DB:`, uniqueISINs.slice(0, 10))
+
+        // Try to find similar products
+        const similarProducts = allTransactions.filter(t =>
+          t.product?.toLowerCase().includes(product?.toLowerCase() || '') ||
+          product?.toLowerCase().includes(t.product?.toLowerCase() || '')
+        )
+
+        if (similarProducts.length > 0) {
+          console.log(`   ℹ️  Found ${similarProducts.length} transactions with similar product names:`)
+          console.log(similarProducts.map(t => `      - "${t.product}" (ISIN: ${t.isin || 'NULL'})`).join('\n'))
+        }
+      }
+
       return NextResponse.json(
         {
           success: false,
           deleted_count: 0,
-          error: "No transactions found matching ISIN/product. Check if ISIN or product name is exactly correct.",
+          error: "No transactions found matching ISIN/product exactly.",
+          hint: "Check console logs for similar product names in your portfolio",
           debug: {
-            isin_filter: isin,
-            product_filter: product,
-            portfolio_id: portfolio_id
+            searched_isin: isin,
+            searched_product: product,
+            portfolio_id: portfolio_id,
+            total_transactions_in_portfolio: allTransactions?.length || 0,
+            sample_products: allTransactions?.slice(0, 5).map(t => ({
+              product: t.product,
+              isin: t.isin
+            }))
           }
         },
         { status: 404 }

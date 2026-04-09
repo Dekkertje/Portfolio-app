@@ -431,6 +431,13 @@ export default function DashboardPage() {
   }
 
   function handleDeletePosition(isin: string, product: string, isManual: boolean, manualPositionId?: string) {
+    console.log(`🔍 Delete position clicked:`, {
+      product,
+      isin,
+      isManual,
+      manualPositionId
+    })
+
     setDeleteConfirm({
       show: true,
       isin,
