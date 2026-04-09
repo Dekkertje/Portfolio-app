@@ -21,6 +21,9 @@ type TickerSuggestion = {
   confidence_score: number
   match_method: string
   is_approved: boolean
+  total_quantity?: number
+  avg_purchase_price?: number
+  currency?: string
 }
 
 export default function ImportPage() {
@@ -57,7 +60,19 @@ export default function ImportPage() {
       })
 
       const data = await res.json()
-      setTickerSuggestions(data.suggestions || [])
+
+      // Merge API suggestions with local transaction data
+      const enrichedSuggestions = (data.suggestions || []).map((s: any) => {
+        const localData = uniqueProducts.find(p => p.isin === s.isin)
+        return {
+          ...s,
+          total_quantity: localData?.total_quantity,
+          avg_purchase_price: localData?.avg_purchase_price,
+          currency: localData?.currency
+        }
+      })
+
+      setTickerSuggestions(enrichedSuggestions)
       setShowTickerReview(true)
     } catch (error) {
       showToast("Fout bij ophalen ticker suggesties", "error")
@@ -312,19 +327,47 @@ export default function ImportPage() {
         console.log("Insert error:", insertError)
         showToast("Fout bij opslaan: " + insertError.message, "error")
       } else {
-        // Extract unique products for ticker review
-        const uniqueProductsMap = new Map<string, {isin: string, product: string, exchange: string | null}>()
+        // Extract unique products for ticker review with aggregated data
+        const uniqueProductsMap = new Map<string, {
+          isin: string
+          product: string
+          exchange: string | null
+          total_quantity: number
+          total_value: number
+          transaction_count: number
+          currency: string
+        }>()
+
         transactionsToInsert.forEach(t => {
           const key = `${t.isin}_${t.product}`
-          if (!uniqueProductsMap.has(key)) {
+          const existing = uniqueProductsMap.get(key)
+
+          if (existing) {
+            // Aggregate data
+            existing.total_quantity += parseFloat(t.quantity) || 0
+            existing.total_value += parseFloat(t.value_eur) || 0
+            existing.transaction_count += 1
+          } else {
             uniqueProductsMap.set(key, {
               isin: t.isin || "",
               product: t.product,
-              exchange: null // We'll need to extract this from CSV in future
+              exchange: null, // We'll need to extract this from CSV in future
+              total_quantity: parseFloat(t.quantity) || 0,
+              total_value: parseFloat(t.value_eur) || 0,
+              transaction_count: 1,
+              currency: t.local_currency || "EUR"
             })
           }
         })
-        const products = Array.from(uniqueProductsMap.values())
+
+        const products = Array.from(uniqueProductsMap.values()).map(p => ({
+          isin: p.isin,
+          product: p.product,
+          exchange: p.exchange,
+          total_quantity: p.total_quantity,
+          avg_purchase_price: p.total_quantity !== 0 ? p.total_value / p.total_quantity : 0,
+          currency: p.currency
+        }))
 
         setImportedCount(transactionsToInsert.length)
         setUniqueProducts(products)

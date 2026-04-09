@@ -13,6 +13,9 @@ type TickerSuggestion = {
   confidence_score: number
   match_method: string
   is_approved: boolean
+  total_quantity?: number
+  avg_purchase_price?: number
+  currency?: string
 }
 
 type TickerMappingReviewProps = {
@@ -126,6 +129,24 @@ export function TickerMappingReview({
                     {suggestion.exchange && (
                       <div>
                         <span className="font-medium">Beurs:</span> {suggestion.exchange}
+                      </div>
+                    )}
+                    {suggestion.total_quantity !== undefined && (
+                      <div className="mt-2 flex items-center gap-4 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 px-3 py-2">
+                        <div>
+                          <span className="text-xs text-slate-500 dark:text-slate-400">Totaal Aantal</span>
+                          <div className="font-semibold text-indigo-900 dark:text-indigo-100">
+                            {suggestion.total_quantity}
+                          </div>
+                        </div>
+                        {suggestion.avg_purchase_price !== undefined && (
+                          <div>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">Gem. Aankoopprijs</span>
+                            <div className="font-semibold text-indigo-900 dark:text-indigo-100">
+                              {suggestion.currency || '€'} {suggestion.avg_purchase_price.toFixed(2)}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
