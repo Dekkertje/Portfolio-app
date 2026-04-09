@@ -72,7 +72,9 @@ export default function ImportPage() {
 
   async function handleApproveTicker(suggestion: TickerSuggestion) {
     try {
-      const supabase = await import("@/lib/supabase/client").then(m => m.supabase)
+      const { supabase } = await import("@/lib/supabase/client")
+      const { data: { user } } = await supabase.auth.getUser()
+
       const { error } = await supabase
         .from("ticker_mappings")
         .upsert({
@@ -84,13 +86,16 @@ export default function ImportPage() {
           confidence_score: suggestion.confidence_score,
           match_method: suggestion.match_method,
           is_approved: true,
-          approved_by: (await supabase.auth.getUser()).data.user?.id,
+          approved_by: user?.id,
           approved_at: new Date().toISOString()
         }, {
           onConflict: "isin,product_name"
         })
 
-      if (error) throw error
+      if (error) {
+        console.error("Approve error:", error)
+        throw error
+      }
 
       setTickerSuggestions(prev =>
         prev.map(s =>
@@ -98,8 +103,9 @@ export default function ImportPage() {
         )
       )
       showToast(`${suggestion.product} goedgekeurd!`, "success")
-    } catch (error) {
-      showToast("Fout bij opslaan ticker", "error")
+    } catch (error: any) {
+      console.error("Approve ticker error:", error)
+      showToast(`Fout bij opslaan ticker: ${error.message || 'Unknown error'}`, "error")
     }
   }
 
@@ -115,7 +121,9 @@ export default function ImportPage() {
     if (!editingTicker) return
 
     try {
-      const supabase = await import("@/lib/supabase/client").then(m => m.supabase)
+      const { supabase } = await import("@/lib/supabase/client")
+      const { data: { user } } = await supabase.auth.getUser()
+
       const { error } = await supabase
         .from("ticker_mappings")
         .upsert({
@@ -127,13 +135,16 @@ export default function ImportPage() {
           confidence_score: 1.0,
           match_method: "manual",
           is_approved: true,
-          approved_by: (await supabase.auth.getUser()).data.user?.id,
+          approved_by: user?.id,
           approved_at: new Date().toISOString()
         }, {
           onConflict: "isin,product_name"
         })
 
-      if (error) throw error
+      if (error) {
+        console.error("Save edited ticker error:", error)
+        throw error
+      }
 
       setTickerSuggestions(prev =>
         prev.map(s =>
@@ -145,8 +156,9 @@ export default function ImportPage() {
 
       showToast("Ticker opgeslagen!", "success")
       setEditingTicker(null)
-    } catch (error) {
-      showToast("Fout bij opslaan ticker", "error")
+    } catch (error: any) {
+      console.error("Save edited ticker error:", error)
+      showToast(`Fout bij opslaan ticker: ${error.message || 'Unknown error'}`, "error")
     }
   }
 

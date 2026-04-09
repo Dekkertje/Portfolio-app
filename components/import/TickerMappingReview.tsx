@@ -30,29 +30,50 @@ export function TickerMappingReview({
   onSkip,
   onContinue,
 }: TickerMappingReviewProps) {
-  const [approvedCount, setApprovedCount] = useState(
-    suggestions.filter(s => s.is_approved).length
-  )
+  const [localSuggestions, setLocalSuggestions] = useState(suggestions)
+  const approvedCount = localSuggestions.filter(s => s.is_approved).length
+  const skippedCount = localSuggestions.filter((s: any) => s.is_skipped).length
 
   const getConfidenceStars = (score: number) => {
     const stars = Math.round(score * 5)
     return "⭐".repeat(stars) + "☆".repeat(5 - stars)
   }
 
-  const getStatusColor = (score: number, method: string) => {
-    if (method === "approved_mapping") return "border-green-500 bg-green-50 dark:bg-green-900/10"
-    if (method === "no_match") return "border-red-500 bg-red-50 dark:bg-red-900/10"
-    if (score >= 0.9) return "border-green-500 bg-green-50 dark:bg-green-900/10"
-    if (score >= 0.7) return "border-yellow-500 bg-yellow-50 dark:bg-yellow-900/10"
+  const getStatusColor = (suggestion: any) => {
+    // Priority: approved (green) > skipped (red) > confidence
+    if (suggestion.is_approved) return "border-green-500 bg-green-50 dark:bg-green-900/10"
+    if (suggestion.is_skipped) return "border-red-500 bg-red-50 dark:bg-red-900/10"
+    if (suggestion.match_method === "no_match") return "border-red-500 bg-red-50 dark:bg-red-900/10"
+    if (suggestion.confidence_score >= 0.9) return "border-green-500 bg-green-50 dark:bg-green-900/10"
+    if (suggestion.confidence_score >= 0.7) return "border-yellow-500 bg-yellow-50 dark:bg-yellow-900/10"
     return "border-orange-500 bg-orange-50 dark:bg-orange-900/10"
   }
 
-  const getStatusIcon = (score: number, method: string) => {
-    if (method === "approved_mapping") return <CheckCircle2 className="h-6 w-6 text-green-600" />
-    if (method === "no_match") return <XCircle className="h-6 w-6 text-red-600" />
-    if (score >= 0.9) return <CheckCircle2 className="h-6 w-6 text-green-600" />
-    if (score >= 0.7) return <AlertTriangle className="h-6 w-6 text-yellow-600" />
+  const getStatusIcon = (suggestion: any) => {
+    if (suggestion.is_approved) return <CheckCircle2 className="h-6 w-6 text-green-600" />
+    if (suggestion.is_skipped) return <XCircle className="h-6 w-6 text-red-600" />
+    if (suggestion.match_method === "no_match") return <XCircle className="h-6 w-6 text-red-600" />
+    if (suggestion.confidence_score >= 0.9) return <CheckCircle2 className="h-6 w-6 text-green-600" />
+    if (suggestion.confidence_score >= 0.7) return <AlertTriangle className="h-6 w-6 text-yellow-600" />
     return <AlertTriangle className="h-6 w-6 text-orange-600" />
+  }
+
+  function handleApprove(suggestion: TickerSuggestion) {
+    setLocalSuggestions(prev =>
+      prev.map(s =>
+        s.isin === suggestion.isin ? { ...s, is_approved: true, is_skipped: false } : s
+      )
+    )
+    onApprove(suggestion)
+  }
+
+  function handleSkip(suggestion: TickerSuggestion) {
+    setLocalSuggestions(prev =>
+      prev.map((s: any) =>
+        s.isin === suggestion.isin ? { ...s, is_skipped: true, is_approved: false } : s
+      )
+    )
+    onSkip(suggestion)
   }
 
   return (
@@ -81,19 +102,16 @@ export function TickerMappingReview({
 
       {/* Suggestions */}
       <div className="space-y-4">
-        {suggestions.map((suggestion, index) => (
+        {localSuggestions.map((suggestion) => (
           <div
             key={suggestion.isin}
-            className={`rounded-lg border-2 p-6 shadow-sm transition-all ${getStatusColor(
-              suggestion.confidence_score,
-              suggestion.match_method
-            )}`}
+            className={`rounded-lg border-2 p-6 shadow-sm transition-all ${getStatusColor(suggestion)}`}
           >
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-4">
                 {/* Status Icon */}
                 <div className="mt-1">
-                  {getStatusIcon(suggestion.confidence_score, suggestion.match_method)}
+                  {getStatusIcon(suggestion)}
                 </div>
 
                 {/* Info */}
@@ -157,18 +175,25 @@ export function TickerMappingReview({
 
               {/* Actions */}
               <div className="flex flex-col gap-2">
-                {suggestion.suggested_ticker && !suggestion.is_approved && (
+                {suggestion.suggested_ticker && !suggestion.is_approved && !(suggestion as any).is_skipped && (
                   <Button
-                    onClick={() => {
-                      onApprove(suggestion)
-                      setApprovedCount(c => c + 1)
-                    }}
+                    onClick={() => handleApprove(suggestion)}
                     variant="primary"
                     className="gap-2"
                   >
                     <CheckCircle2 className="h-4 w-4" />
                     Goedkeuren
                   </Button>
+                )}
+                {suggestion.is_approved && (
+                  <div className="rounded-lg bg-green-100 dark:bg-green-900/30 px-4 py-2 text-center text-sm font-semibold text-green-700 dark:text-green-300">
+                    ✓ Goedgekeurd
+                  </div>
+                )}
+                {(suggestion as any).is_skipped && (
+                  <div className="rounded-lg bg-red-100 dark:bg-red-900/30 px-4 py-2 text-center text-sm font-semibold text-red-700 dark:text-red-300">
+                    ✗ Overgeslagen
+                  </div>
                 )}
                 <Button
                   onClick={() => onEdit(suggestion)}
@@ -178,14 +203,16 @@ export function TickerMappingReview({
                   <Edit2 className="h-4 w-4" />
                   Aanpassen
                 </Button>
-                <Button
-                  onClick={() => onSkip(suggestion)}
-                  variant="secondary"
-                  className="gap-2"
-                >
-                  <XCircle className="h-4 w-4" />
-                  Overslaan
-                </Button>
+                {!suggestion.is_approved && !(suggestion as any).is_skipped && (
+                  <Button
+                    onClick={() => handleSkip(suggestion)}
+                    variant="secondary"
+                    className="gap-2 hover:bg-red-50 hover:border-red-300 dark:hover:bg-red-900/20"
+                  >
+                    <XCircle className="h-4 w-4" />
+                    Overslaan
+                  </Button>
+                )}
               </div>
             </div>
           </div>
