@@ -54,6 +54,15 @@ function levenshteinDistance(s1: string, s2: string): number {
 export async function POST(request: Request) {
   try {
     const supabase = await createServerSupabaseClient()
+
+    // Verify authentication
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      console.error("Auth error in ticker-mapping:", authError)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const body = await request.json()
     const { positions } = body // Array of { isin, product, exchange }
 
@@ -61,43 +70,57 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid positions array" }, { status: 400 })
     }
 
+    console.log(`Processing ${positions.length} positions for user ${user.id}`)
     const suggestions = []
 
     for (const pos of positions) {
       const { isin, product, exchange } = pos
 
-      // 1. Check if we already have an approved mapping
-      const { data: existingMapping } = await supabase
-        .from("ticker_mappings")
-        .select("*")
-        .eq("isin", isin)
-        .eq("is_approved", true)
-        .maybeSingle()
+      try {
+        // 1. Check if we already have an approved mapping
+        const { data: existingMappings, error: mappingError } = await supabase
+          .from("ticker_mappings")
+          .select("*")
+          .eq("isin", isin)
+          .eq("is_approved", true)
+          .limit(1)
 
-      if (existingMapping) {
-        suggestions.push({
-          isin,
-          product,
-          exchange,
-          suggested_ticker: existingMapping.suggested_ticker,
-          yahoo_symbol: existingMapping.yahoo_symbol,
-          confidence_score: 1.0,
-          match_method: "approved_mapping",
-          is_approved: true,
-        })
-        continue
-      }
+        if (mappingError) {
+          console.error(`Error fetching mapping for ${isin}:`, mappingError)
+        }
 
-      // 2. Try exact ISIN match in securities database
-      const { data: security } = await supabase
-        .from("securities")
-        .select("*")
-        .eq("isin", isin)
-        .maybeSingle()
+        const existingMapping = existingMappings?.[0]
 
-      if (security) {
-        const suffix = exchange ? EXCHANGE_SUFFIXES[exchange] || "" : ""
-        suggestions.push({
+        if (existingMapping) {
+          suggestions.push({
+            isin,
+            product,
+            exchange,
+            suggested_ticker: existingMapping.suggested_ticker,
+            yahoo_symbol: existingMapping.yahoo_symbol,
+            confidence_score: 1.0,
+            match_method: "approved_mapping",
+            is_approved: true,
+          })
+          continue
+        }
+
+        // 2. Try exact ISIN match in securities database
+        const { data: securities, error: securityError } = await supabase
+          .from("securities")
+          .select("*")
+          .eq("isin", isin)
+          .limit(1)
+
+        if (securityError) {
+          console.error(`Error fetching security for ${isin}:`, securityError)
+        }
+
+        const security = securities?.[0]
+
+        if (security) {
+          const suffix = exchange ? EXCHANGE_SUFFIXES[exchange] || "" : ""
+          suggestions.push({
           isin,
           product,
           exchange,
@@ -142,22 +165,51 @@ export async function POST(request: Request) {
         }
       }
 
-      // 4. No match found - manual input required
-      suggestions.push({
-        isin,
-        product,
-        exchange,
-        suggested_ticker: null,
-        yahoo_symbol: null,
-        confidence_score: 0,
-        match_method: "no_match",
-        is_approved: false,
-      })
+        // 4. No match found - manual input required
+        suggestions.push({
+          isin,
+          product,
+          exchange,
+          suggested_ticker: null,
+          yahoo_symbol: null,
+          confidence_score: 0,
+          match_method: "no_match",
+          is_approved: false,
+        })
+      } catch (posError: any) {
+        console.error(`Error processing position ${isin}:`, posError)
+        // Add error entry but continue processing
+        suggestions.push({
+          isin,
+          product,
+          exchange,
+          suggested_ticker: null,
+          yahoo_symbol: null,
+          confidence_score: 0,
+          match_method: "error",
+          is_approved: false,
+        })
+      }
     }
 
-    return NextResponse.json({ suggestions })
+    console.log(`Returning ${suggestions.length} suggestions`)
+    return NextResponse.json({ suggestions }, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
   } catch (error: any) {
     console.error("Ticker mapping error:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error("Error stack:", error.stack)
+    return NextResponse.json({
+      error: error.message || "Unknown error",
+      details: error.toString()
+    }, {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
   }
 }
