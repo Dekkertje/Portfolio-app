@@ -164,7 +164,77 @@ CREATE TRIGGER on_auth_user_created
   EXECUTE FUNCTION public.handle_new_user();
 
 -- ----------------------------------------------------------------------------
--- 6. VERIFY SETUP
+-- 6. FIX ALL RLS POLICIES
+-- ----------------------------------------------------------------------------
+
+-- PORTFOLIOS
+DROP POLICY IF EXISTS "Users can view their own portfolios" ON portfolios;
+DROP POLICY IF EXISTS "Users can create their own portfolio" ON portfolios;
+DROP POLICY IF EXISTS "Users can update their own portfolio" ON portfolios;
+DROP POLICY IF EXISTS "Users can delete their own portfolio" ON portfolios;
+
+CREATE POLICY "Users can view their own portfolios"
+  ON portfolios FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create their own portfolio"
+  ON portfolios FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own portfolio"
+  ON portfolios FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own portfolio"
+  ON portfolios FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- MANUAL POSITIONS
+DROP POLICY IF EXISTS "Users can view manual positions" ON manual_positions;
+DROP POLICY IF EXISTS "Users can insert manual positions" ON manual_positions;
+DROP POLICY IF EXISTS "Users can update manual positions" ON manual_positions;
+DROP POLICY IF EXISTS "Users can delete manual positions" ON manual_positions;
+
+CREATE POLICY "Users can view manual positions"
+  ON manual_positions FOR SELECT
+  USING (portfolio_id IN (SELECT id FROM portfolios WHERE user_id = auth.uid()));
+
+CREATE POLICY "Users can insert manual positions"
+  ON manual_positions FOR INSERT
+  WITH CHECK (portfolio_id IN (SELECT id FROM portfolios WHERE user_id = auth.uid()));
+
+CREATE POLICY "Users can update manual positions"
+  ON manual_positions FOR UPDATE
+  USING (portfolio_id IN (SELECT id FROM portfolios WHERE user_id = auth.uid()));
+
+CREATE POLICY "Users can delete manual positions"
+  ON manual_positions FOR DELETE
+  USING (portfolio_id IN (SELECT id FROM portfolios WHERE user_id = auth.uid()));
+
+-- CASH POSITIONS
+DROP POLICY IF EXISTS "Users can view cash positions" ON cash_positions;
+DROP POLICY IF EXISTS "Users can insert cash positions" ON cash_positions;
+DROP POLICY IF EXISTS "Users can update cash positions" ON cash_positions;
+DROP POLICY IF EXISTS "Users can delete cash positions" ON cash_positions;
+
+CREATE POLICY "Users can view cash positions"
+  ON cash_positions FOR SELECT
+  USING (portfolio_id IN (SELECT id FROM portfolios WHERE user_id = auth.uid()));
+
+CREATE POLICY "Users can insert cash positions"
+  ON cash_positions FOR INSERT
+  WITH CHECK (portfolio_id IN (SELECT id FROM portfolios WHERE user_id = auth.uid()));
+
+CREATE POLICY "Users can update cash positions"
+  ON cash_positions FOR UPDATE
+  USING (portfolio_id IN (SELECT id FROM portfolios WHERE user_id = auth.uid()));
+
+CREATE POLICY "Users can delete cash positions"
+  ON cash_positions FOR DELETE
+  USING (portfolio_id IN (SELECT id FROM portfolios WHERE user_id = auth.uid()));
+
+-- ----------------------------------------------------------------------------
+-- 7. VERIFY SETUP
 -- ----------------------------------------------------------------------------
 SELECT
   'manual_positions' as table_name,
