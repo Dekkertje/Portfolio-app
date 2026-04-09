@@ -106,7 +106,7 @@ export async function POST(request: Request) {
         }
 
         // 2. Try exact ISIN match in securities database
-        const { data: securities, error: securityError } = await supabase
+        const { data: exactMatches, error: securityError } = await supabase
           .from("securities")
           .select("*")
           .eq("isin", isin)
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
           console.error(`Error fetching security for ${isin}:`, securityError)
         }
 
-        const security = securities?.[0]
+        const security = exactMatches?.[0]
 
         if (security) {
           const suffix = exchange ? EXCHANGE_SUFFIXES[exchange] || "" : ""
@@ -134,15 +134,15 @@ export async function POST(request: Request) {
       }
 
       // 3. Fuzzy match on product name
-      const { data: securities } = await supabase
+      const { data: fuzzyMatches } = await supabase
         .from("securities")
         .select("*")
         .ilike("name", `%${product.split(" ")[0]}%`) // Match first word
         .limit(5)
 
-      if (securities && securities.length > 0) {
+      if (fuzzyMatches && fuzzyMatches.length > 0) {
         // Calculate similarity scores
-        const scored = securities.map((sec: any) => ({
+        const scored = fuzzyMatches.map((sec: any) => ({
           ...sec,
           score: similarity(product.toUpperCase(), sec.name.toUpperCase()),
         }))
