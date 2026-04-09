@@ -446,22 +446,28 @@ export default function DashboardPage() {
     try {
       if (isManual && manualPositionId) {
         // Delete manual position
+        console.log(`🗑️ Deleting manual position: ${product} (${manualPositionId})`)
         const res = await fetch(`/api/manual-positions?id=${manualPositionId}`, {
           method: "DELETE",
         })
+
         if (res.ok) {
+          console.log(`✅ Successfully deleted ${product}`)
           showToast(`${product} verwijderd!`, "success")
           loadDashboard()
         } else {
-          throw new Error("Delete failed")
+          const errorData = await res.json()
+          console.error(`❌ Delete failed:`, errorData)
+          showToast(`Fout bij verwijderen: ${errorData.error || 'Unknown error'}`, "error")
         }
       } else {
         // For DEGIRO positions, we can't actually delete them from transactions
         // But we could add a "hidden" flag if needed
-        showToast("DEGIRO posities kunnen niet verwijderd worden. Importeer nieuwe transacties om te updaten.", "error")
+        showToast("DEGIRO posities kunnen niet verwijderd worden. Importeer nieuwe transacties om te updaten.", "info")
       }
-    } catch (error) {
-      showToast("Fout bij verwijderen", "error")
+    } catch (error: any) {
+      console.error("Delete error:", error)
+      showToast(`Fout bij verwijderen: ${error.message || 'Unknown error'}`, "error")
     }
 
     setDeleteConfirm({ show: false, isin: '', product: '', isManual: false })

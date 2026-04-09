@@ -230,23 +230,45 @@ export async function POST() {
     for (const item of uniqueProducts) {
       let stockInfo = null
 
-      // If this is a manual position with yahoo_symbol, use it directly
-      if (item.yahooSymbol) {
+      // PRIORITY 1: Check ticker_mappings table (approved mappings from import)
+      if (item.isin || item.product) {
+        const { data: tickerMapping } = await supabase
+          .from("ticker_mappings")
+          .select("*")
+          .eq("is_approved", true)
+          .or(`isin.eq.${item.isin || 'NULL'},product_name.eq.${item.product}`)
+          .limit(1)
+          .maybeSingle()
+
+        if (tickerMapping) {
+          console.log(`✅ Using approved ticker mapping: ${tickerMapping.product_name} → ${tickerMapping.yahoo_symbol}`)
+          stockInfo = {
+            symbol: tickerMapping.suggested_ticker || tickerMapping.yahoo_symbol,
+            yahooSymbol: tickerMapping.yahoo_symbol,
+            currency: "USD" as "USD" | "EUR" // Will be detected from API
+          }
+        }
+      }
+
+      // PRIORITY 2: If this is a manual position with yahoo_symbol, use it directly
+      if (!stockInfo && item.yahooSymbol) {
         console.log(`📌 Manual position - using Yahoo symbol: ${item.yahooSymbol}`)
         stockInfo = {
           symbol: item.yahooSymbol,
           yahooSymbol: item.yahooSymbol,
           currency: "USD" as "USD" | "EUR" // Default to USD, will be detected from API
         }
-      } else {
-        // Try hardcoded mapping first
-        stockInfo = mapProductToSymbol(item.product)
+      }
 
-        // If not found, try fuzzy matching from securities database
-        if (!stockInfo) {
-          console.log(`   ⚠️  No exact mapping for: ${item.product}, trying fuzzy match...`)
-          stockInfo = await findSecurityByFuzzyMatch(item.product, item.isin, supabase)
-        }
+      // PRIORITY 3: Try hardcoded mapping
+      if (!stockInfo) {
+        stockInfo = mapProductToSymbol(item.product)
+      }
+
+      // PRIORITY 4: Try fuzzy matching from securities database
+      if (!stockInfo) {
+        console.log(`   ⚠️  No exact mapping for: ${item.product}, trying fuzzy match...`)
+        stockInfo = await findSecurityByFuzzyMatch(item.product, item.isin, supabase)
       }
 
       if (!stockInfo) {
