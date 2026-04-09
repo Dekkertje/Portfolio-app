@@ -102,11 +102,18 @@ export default function SettingsPage() {
         .from("avatars")
         .getPublicUrl(filePath)
 
-      // Update profile
+      // Update or insert profile
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) throw new Error("No session")
+
       const { error: updateError } = await supabase
         .from("profiles")
-        .update({ avatar_url: publicUrl })
-        .eq("id", profile?.id)
+        .upsert({
+          id: session.user.id,
+          avatar_url: publicUrl
+        }, {
+          onConflict: 'id'
+        })
 
       if (updateError) {
         throw updateError
@@ -125,10 +132,17 @@ export default function SettingsPage() {
     try {
       setSaving(true)
 
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) throw new Error("No session")
+
       const { error } = await supabase
         .from("profiles")
-        .update({ full_name: fullName })
-        .eq("id", profile?.id)
+        .upsert({
+          id: session.user.id,
+          full_name: fullName
+        }, {
+          onConflict: 'id'
+        })
 
       if (error) throw error
 
@@ -136,6 +150,7 @@ export default function SettingsPage() {
       setProfile(prev => prev ? { ...prev, full_name: fullName } : null)
     } catch (error) {
       showToast("Error saving profile", "error")
+      console.error(error)
     } finally {
       setSaving(false)
     }
