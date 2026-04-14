@@ -51,6 +51,9 @@ export default function DashboardPage() {
   // All-time snapshots for max drawdown + YTD calculation
   const [allSnapshots, setAllSnapshots] = useState<{ snapshot_date: string; total_value: number; total_cost: number }[]>([])
 
+  // Earliest trade date — used to prepend an inception point to the ALL-period chart
+  const [firstTransactionDate, setFirstTransactionDate] = useState<string | null>(null)
+
   // Portfolio-level totals that can't be derived from open positions alone:
   // - realizedPnLAll: includes fully sold positions (quantity = 0) which are filtered out of `positions`
   // - soldCostBasis: total cost of all sold shares (needed for correct return % denominator)
@@ -162,8 +165,12 @@ export default function DashboardPage() {
       // Portfolio-level accumulators (not derivable from open positions only)
       let accRealizedPnL = 0
       let accSoldCostBasis = 0
+      let firstTxDate: string | null = null
 
       for (const tx of transactions as Transaction[]) {
+        if (tx.trade_date && (!firstTxDate || tx.trade_date < firstTxDate)) {
+          firstTxDate = tx.trade_date
+        }
         const key = `${tx.product}__${tx.isin || ""}`
 
         if (!grouped[key]) {
@@ -334,7 +341,7 @@ export default function DashboardPage() {
         soldCostBasis:          accSoldCostBasis,
         totalDividendsReceived,
       })
-
+      setFirstTransactionDate(firstTxDate)
       setPositions(sortedPositions)
       setLoading(false)
     } catch (error) {
@@ -802,7 +809,7 @@ export default function DashboardPage() {
 
           if (snapshots && snapshots.length > 0) {
             // Use real historical data
-            const historicalData = snapshots.map((snap: any) => ({
+            const historicalData: { date: string; value: number; invested: number }[] = snapshots.map((snap: any) => ({
               date: new Date(snap.snapshot_date).toLocaleDateString('nl-NL', {
                 day: 'numeric',
                 month: 'short'
@@ -810,6 +817,24 @@ export default function DashboardPage() {
               value: Number(snap.total_value),
               invested: Number(snap.total_cost),
             }))
+
+            // For ALL period: prepend an inception point at the first transaction date
+            // so the chart starts from when the portfolio actually began, not when
+            // we started saving snapshots (April 8).
+            if (selectedPeriod === 'ALL' && firstTransactionDate) {
+              const firstSnapDate = snapshots[0]?.snapshot_date
+              if (firstSnapDate && firstTransactionDate < firstSnapDate) {
+                const firstSnap = snapshots[0]
+                historicalData.unshift({
+                  date: new Date(firstTransactionDate).toLocaleDateString('nl-NL', {
+                    day: 'numeric', month: 'short', year: '2-digit',
+                  }),
+                  // At inception P&L = 0 — value equals cost basis of earliest snapshot
+                  value:    Number(firstSnap.total_cost),
+                  invested: Number(firstSnap.total_cost),
+                })
+              }
+            }
 
             // Add current day's data if not already included
             const today = new Date().toISOString().split('T')[0]
@@ -840,7 +865,7 @@ export default function DashboardPage() {
     }
 
     loadPerformanceData()
-  }, [metrics.totalCost, metrics.totalValue, selectedPeriod, customStartDate, customEndDate, portfolioId])
+  }, [metrics.totalCost, metrics.totalValue, selectedPeriod, customStartDate, customEndDate, portfolioId, firstTransactionDate])
 
   // Load cash positions when portfolio ID is available
   useEffect(() => {
@@ -878,10 +903,48 @@ export default function DashboardPage() {
     return { change, changePercent }
   }, [performanceData])
 
-  // Benchmark data for comparison
+  // Benchmark data — portfolio line uses real snapshots (normalized to 100 at start),
+  // benchmark line uses period-scaled historical average return.
   const benchmarkData = useMemo(() => {
-    return generateBenchmarkData(selectedPeriod, selectedBenchmark)
-  }, [selectedPeriod, selectedBenchmark])
+    if (performanceData.length < 2) return generateBenchmarkData(selectedPeriod, selectedBenchmark)
+
+    const firstValue = performanceData[0].value
+    if (firstValue === 0) return generateBenchmarkData(selectedPeriod, selectedBenchmark)
+
+    // Annualised average returns per index
+    const annualReturns: Record<BenchmarkType, number> = {
+      sp500: 0.10, nasdaq100: 0.13, aex: 0.08, msci_world: 0.09,
+    }
+
+    // Scale to the period
+    const scaleFactor = (() => {
+      if (selectedPeriod === '1W')  return 7   / 365
+      if (selectedPeriod === '1M')  return 30  / 365
+      if (selectedPeriod === '3M')  return 91  / 365
+      if (selectedPeriod === '6M')  return 182 / 365
+      if (selectedPeriod === '1Y')  return 1
+      if (selectedPeriod === 'YTD') {
+        const daysSinceJan1 = (Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86_400_000
+        return daysSinceJan1 / 365
+      }
+      // ALL: approximate from number of data points (daily snapshots)
+      return Math.max(performanceData.length, 1) / 252
+    })()
+
+    const totalBenchmarkReturn = annualReturns[selectedBenchmark] * scaleFactor
+    const n = performanceData.length
+
+    return performanceData.map((d, i) => {
+      const progress = i / Math.max(n - 1, 1)
+      return {
+        date:      d.date,
+        // Portfolio: actual relative return in %, e.g. +5.3 means +5.3%
+        portfolio: ((d.value / firstValue) - 1) * 100,
+        // Benchmark: simulated relative return in %
+        benchmark: totalBenchmarkReturn * progress * 100,
+      }
+    })
+  }, [performanceData, selectedBenchmark, selectedPeriod])
 
   // Dividend metrics
   const dividendMetrics = useMemo(() => {

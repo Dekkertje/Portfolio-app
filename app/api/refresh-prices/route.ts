@@ -159,13 +159,20 @@ async function processItem(
     dividendResult = { product: item.product, dividend: annualEur, frequency }
 
     if (item.isin) {
+      // UPSERT: creates the row if it doesn't exist yet (e.g. ISINs not in the
+      // pre-seeded securities table), otherwise updates the dividend columns only.
       await supabase
         .from("securities")
-        .update({
-          annual_dividend:    round4(annualEur),
-          dividend_frequency: frequency,
-        })
-        .eq("isin", item.isin)
+        .upsert(
+          {
+            isin:               item.isin,
+            name:               item.product,
+            yahoo_symbol:       yahooSymbol,
+            annual_dividend:    round4(annualEur),
+            dividend_frequency: frequency,
+          },
+          { onConflict: "isin" }
+        )
     }
   }
 

@@ -40,7 +40,7 @@ export function BenchmarkChart({ data, benchmarkType }: BenchmarkChartProps) {
         <YAxis
           stroke={isDark ? "#94a3b8" : "#64748b"}
           style={{ fontSize: '12px' }}
-          tickFormatter={(value) => `${value.toFixed(0)}%`}
+          tickFormatter={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(0)}%`}
         />
         <Tooltip
           contentStyle={{
@@ -50,7 +50,7 @@ export function BenchmarkChart({ data, benchmarkType }: BenchmarkChartProps) {
             fontSize: '12px',
             color: isDark ? "#f1f5f9" : "#0f172a",
           }}
-          formatter={(value) => `${Number(value).toFixed(2)}%`}
+          formatter={(value) => { const v = Number(value); return `${v >= 0 ? '+' : ''}${v.toFixed(2)}%` }}
         />
         <Legend
           wrapperStyle={{
