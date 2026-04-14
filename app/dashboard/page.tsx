@@ -9,9 +9,9 @@ import { PerformanceChart } from "@/components/dashboard/PerformanceChart"
 import { PositionsTable } from "@/components/dashboard/PositionsTable"
 import { Button } from "@/components/ui/Button"
 import { useToast } from "@/components/ui/Toast"
-import { Wallet, TrendingUp, PiggyBank, Percent, RefreshCw, Plus, DollarSign, Calculator } from "lucide-react"
+import { RefreshCw, Plus, DollarSign, BarChart2 } from "lucide-react"
 import { Transaction, Price, Position, PriceAlert } from "@/lib/types"
-import { formatCurrency, isETF, getSector, generatePerformanceData, generateBenchmarkData, calculateDividendYield, BenchmarkType } from "@/lib/utils"
+import { formatCurrency, isETF, getSector, generatePerformanceData, generateBenchmarkData, BenchmarkType } from "@/lib/utils"
 import { PeriodFilter, Period } from "@/components/dashboard/PeriodFilter"
 import { BenchmarkChart } from "@/components/dashboard/BenchmarkChart"
 import { BenchmarkSelector } from "@/components/dashboard/BenchmarkSelector"
@@ -22,6 +22,9 @@ import { CashPositionModal } from "@/components/dashboard/CashPositionModal"
 import { CompoundCalculator } from "@/components/dashboard/CompoundCalculator"
 import { CashPositionCard } from "@/components/dashboard/CashPositionCard"
 import { ConfirmModal } from "@/components/ui/ConfirmModal"
+import { HeroCard } from "@/components/dashboard/HeroCard"
+import { RiskPanel } from "@/components/dashboard/RiskPanel"
+import { TopPositionsChart, TopPosition } from "@/components/dashboard/TopPositionsChart"
 
 export default function DashboardPage() {
   const [positions, setPositions] = useState<Position[]>([])
@@ -44,6 +47,9 @@ export default function DashboardPage() {
     isManual: boolean
     manualPositionId?: string
   }>({ show: false, isin: '', product: '', isManual: false })
+
+  // All-time snapshots for max drawdown + YTD calculation
+  const [allSnapshots, setAllSnapshots] = useState<{ snapshot_date: string; total_value: number; total_cost: number }[]>([])
 
   // Portfolio-level totals that can't be derived from open positions alone:
   // - realizedPnLAll: includes fully sold positions (quantity = 0) which are filtered out of `positions`
@@ -670,6 +676,60 @@ export default function DashboardPage() {
     }
   }, [positions, portfolioTotals])
 
+  // ── Max Drawdown ────────────────────────────────────────────────────────────
+  const maxDrawdownPct = useMemo(() => {
+    if (allSnapshots.length < 2) return 0
+    let peak = 0
+    let maxDD = 0
+    for (const s of allSnapshots) {
+      const v = Number(s.total_value)
+      if (v > peak) peak = v
+      const dd = peak > 0 ? (peak - v) / peak * 100 : 0
+      if (dd > maxDD) maxDD = dd
+    }
+    return maxDD
+  }, [allSnapshots])
+
+  // ── YTD return ───────────────────────────────────────────────────────────────
+  const ytdReturnPct = useMemo(() => {
+    if (allSnapshots.length === 0 || metrics.totalValue === 0) return null
+    const jan1 = `${new Date().getFullYear()}-01-01`
+    // Find the last snapshot on or before Jan 1
+    const ytdBase = [...allSnapshots]
+      .filter(s => s.snapshot_date <= jan1)
+      .pop()
+    if (!ytdBase || Number(ytdBase.total_value) === 0) return null
+    return (metrics.totalValue - Number(ytdBase.total_value)) / Number(ytdBase.total_value) * 100
+  }, [allSnapshots, metrics.totalValue])
+
+  // ── Cash total + Exposure ────────────────────────────────────────────────────
+  const cashTotal = useMemo(
+    () => cashPositions.reduce((s: number, c: any) => s + Number(c.amount || 0), 0),
+    [cashPositions]
+  )
+
+  const exposurePct = useMemo(() => {
+    const total = metrics.totalValue + cashTotal
+    return total > 0 ? (metrics.totalValue / total) * 100 : 100
+  }, [metrics.totalValue, cashTotal])
+
+  // ── Top positions for bar chart ──────────────────────────────────────────────
+  const topPositions = useMemo((): TopPosition[] => {
+    return positions.map(p => {
+      const pnlEur = p.currentValue - p.invested
+      const pnlPct = p.invested > 0 ? (pnlEur / p.invested) * 100 : 0
+      return {
+        product:      p.product,
+        isin:         p.isin,
+        currentValue: p.currentValue,
+        weight:       metrics.totalValue > 0 ? (p.currentValue / metrics.totalValue) * 100 : 0,
+        pnlEur,
+        pnlPct,
+        isETF:        p.isETF,
+      }
+    })
+  }, [positions, metrics.totalValue])
+
   // Allocation data for pie charts
   const stocksAllocationData = useMemo(() => {
     const stocksTotal = stocks.reduce((sum, p) => sum + p.currentValue, 0)
@@ -789,6 +849,21 @@ export default function DashboardPage() {
     }
   }, [portfolioId])
 
+  // Load all-time snapshots for max drawdown + YTD (once per portfolio load)
+  useEffect(() => {
+    if (!portfolioId) return
+    async function loadAllSnapshots() {
+      try {
+        const res = await fetch(`/api/save-snapshot?portfolio_id=${portfolioId}&period=ALL`)
+        if (res.ok) {
+          const { snapshots } = await res.json()
+          setAllSnapshots(snapshots || [])
+        }
+      } catch { /* non-critical */ }
+    }
+    loadAllSnapshots()
+  }, [portfolioId])
+
   // Period-specific performance metrics
   const periodMetrics = useMemo(() => {
     if (performanceData.length < 2) {
@@ -845,432 +920,206 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout>
-      {/* Header */}
-      <div className="border-b border-slate-200 bg-white px-8 py-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Welkom terug! Bekijk je portfolio prestaties
-            </p>
-          </div>
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      <div className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-4 sm:px-8 sm:py-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Portfolio</h1>
           <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => setShowAddPositionModal(true)}
-              variant="secondary"
-              className="gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              Aandeel
+            <Button onClick={() => setShowAddPositionModal(true)} variant="secondary" className="gap-1.5 text-sm">
+              <Plus className="h-3.5 w-3.5" /> Aandeel
             </Button>
-            <Button
-              onClick={() => setShowCashModal(true)}
-              variant="secondary"
-              className="gap-2"
-            >
-              <DollarSign className="h-4 w-4" />
-              Cash
-            </Button>
-            <Button
-              onClick={savePortfolioSnapshot}
-              disabled={!portfolioId}
-              variant="secondary"
-              className="gap-2"
-            >
-              <PiggyBank className="h-4 w-4" />
-              Snapshot
+            <Button onClick={() => setShowCashModal(true)} variant="secondary" className="gap-1.5 text-sm">
+              <DollarSign className="h-3.5 w-3.5" /> Cash
             </Button>
             <Button
               onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
               variant={autoRefreshEnabled ? "primary" : "secondary"}
-              className="gap-2"
+              className="gap-1.5 text-sm"
             >
-              <RefreshCw className={`h-4 w-4 ${autoRefreshEnabled ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-3.5 w-3.5 ${autoRefreshEnabled && refreshing ? "animate-spin" : ""}`} />
               Auto {autoRefreshEnabled ? "Aan" : "Uit"}
             </Button>
-            <Button
-              onClick={() => handleRefreshPrices(false)}
-              disabled={refreshing}
-              variant="primary"
-              className="gap-2"
-            >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              {refreshing ? "Bezig..." : "Verversen"}
+            <Button onClick={() => handleRefreshPrices(false)} disabled={refreshing} variant="primary" className="gap-1.5 text-sm">
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+              {refreshing ? "Bezig…" : "Verversen"}
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="p-8">
-        {/* Overview Stats */}
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          <div
-            className="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 p-4 shadow-sm ring-1 ring-blue-100 cursor-pointer hover:shadow-md transition-shadow"
-            onClick={() => scrollToSection('stocks-section')}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-blue-600">Aandelen</p>
-                <p className="mt-1 text-2xl font-bold text-blue-900">
-                  <PrivacyText>{stocks.length}</PrivacyText>
-                </p>
-                <p className="mt-1 text-sm text-blue-700">
-                  <PrivacyText>{formatCurrency(stocks.reduce((sum, p) => sum + p.currentValue, 0))}</PrivacyText>
-                </p>
-              </div>
-              <div className="rounded-lg bg-blue-100 p-2">
-                <TrendingUp className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </div>
+      {/* ── Main content ────────────────────────────────────────────────────── */}
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6">
 
-          <div
-            className="rounded-xl bg-gradient-to-br from-purple-50 to-pink-50 p-4 shadow-sm ring-1 ring-purple-100 cursor-pointer hover:shadow-md transition-shadow"
-            onClick={() => scrollToSection('etfs-section')}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-purple-600">ETFs</p>
-                <p className="mt-1 text-2xl font-bold text-purple-900">
-                  <PrivacyText>{etfs.length}</PrivacyText>
-                </p>
-                <p className="mt-1 text-sm text-purple-700">
-                  <PrivacyText>{formatCurrency(etfs.reduce((sum, p) => sum + p.currentValue, 0))}</PrivacyText>
-                </p>
-              </div>
-              <div className="rounded-lg bg-purple-100 p-2">
-                <TrendingUp className="h-6 w-6 text-purple-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-xl bg-gradient-to-br from-green-50 to-emerald-50 p-4 shadow-sm ring-1 ring-green-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-green-600">Gerealiseerd</p>
-                <p className={`mt-1 text-2xl font-bold ${metrics.totalRealizedPnL >= 0 ? 'text-green-900' : 'text-red-900'}`}>
-                  <PrivacyText>{formatCurrency(metrics.totalRealizedPnL)}</PrivacyText>
-                </p>
-                <p className="mt-1 text-sm text-green-700">
-                  Verkopen + dividend
-                </p>
-              </div>
-              <div className="rounded-lg bg-green-100 p-2">
-                <Wallet className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 p-4 shadow-sm ring-1 ring-amber-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-amber-600">Ongerealiseerd</p>
-                <p className={`mt-1 text-2xl font-bold ${metrics.unrealizedPnL >= 0 ? 'text-green-900' : 'text-red-900'}`}>
-                  <PrivacyText>{formatCurrency(metrics.unrealizedPnL)}</PrivacyText>
-                </p>
-                <p className="mt-1 text-sm text-amber-700">
-                  Marktwaarde − kostenbasis
-                </p>
-              </div>
-              <div className="rounded-lg bg-amber-100 p-2">
-                <PiggyBank className="h-6 w-6 text-amber-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className={`rounded-xl bg-gradient-to-br p-4 shadow-sm ring-1 ${
-            metrics.totalDailyPnL >= 0
-              ? 'from-teal-50 to-cyan-50 ring-teal-100'
-              : 'from-rose-50 to-red-50 ring-rose-100'
-          }`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-xs font-medium ${metrics.totalDailyPnL >= 0 ? 'text-teal-600' : 'text-rose-600'}`}>
-                  Dagwinst/Verlies
-                </p>
-                <p className={`mt-1 text-2xl font-bold ${metrics.totalDailyPnL >= 0 ? 'text-teal-900' : 'text-rose-900'}`}>
-                  <PrivacyText>{formatCurrency(metrics.totalDailyPnL)}</PrivacyText>
-                </p>
-                <p className={`mt-1 text-sm ${metrics.totalDailyPnL >= 0 ? 'text-teal-700' : 'text-rose-700'}`}>
-                  <PrivacyText>{metrics.totalDailyPnLPercent >= 0 ? '+' : ''}{metrics.totalDailyPnLPercent.toFixed(2)}%</PrivacyText>
-                </p>
-              </div>
-              <div className={`rounded-lg p-2 ${metrics.totalDailyPnL >= 0 ? 'bg-teal-100' : 'bg-rose-100'}`}>
-                <TrendingUp className={`h-6 w-6 ${metrics.totalDailyPnL >= 0 ? 'text-teal-600' : 'text-rose-600'}`} />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Cash Positions Card */}
-        {cashPositions.length > 0 && (
-          <div className="mb-6">
-            <CashPositionCard
-              positions={cashPositions}
-              onEdit={handleEditCash}
-              onDelete={handleDeleteCash}
+        {/* LAYER 1 — Hero + Risk (2/3 + 1/3 on desktop, stacked on mobile) */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <HeroCard
+              totalValue={metrics.totalValue}
+              netPnL={metrics.totalReturn}
+              totalReturnPct={metrics.totalReturnPct}
+              dailyPnL={metrics.totalDailyPnL}
+              dailyPnLPct={metrics.totalDailyPnLPercent}
+              ytdReturnPct={ytdReturnPct}
+              totalCapitalDeployed={metrics.totalCapitalDeployed}
             />
           </div>
-        )}
-
-        {/* Main Metrics Grid */}
-        <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricCard
-            title="Portfolio Waarde"
-            value={formatCurrency(metrics.totalValue)}
-            change={{
-              value: `${metrics.totalDailyPnLPercent >= 0 ? "+" : ""}${metrics.totalDailyPnLPercent.toFixed(2)}%`,
-              isPositive: metrics.totalDailyPnLPercent >= 0,
-            }}
-            icon={Wallet}
-            iconColor="bg-indigo-600"
-          />
-          <MetricCard
-            title="Kostenbasis"
-            value={formatCurrency(metrics.totalCost)}
-            change={{
-              value: `Totaal ingezet: ${formatCurrency(metrics.totalCapitalDeployed)}`,
-              isPositive: true,
-            }}
-            icon={PiggyBank}
-            iconColor="bg-purple-600"
-          />
-          <MetricCard
-            title="Totaal Rendement"
-            value={formatCurrency(metrics.totalReturn)}
-            change={{
-              value: `Incl. dividenden & verkopen`,
-              isPositive: metrics.totalReturn >= 0,
-            }}
-            icon={TrendingUp}
-            iconColor={metrics.totalReturn >= 0 ? "bg-green-600" : "bg-red-600"}
-          />
-          <MetricCard
-            title="Return %"
-            value={`${metrics.totalReturnPct >= 0 ? "+" : ""}${metrics.totalReturnPct.toFixed(2)}%`}
-            change={{
-              value: `Op ingezet kapitaal`,
-              isPositive: metrics.totalReturnPct >= 0,
-            }}
-            icon={Percent}
-            iconColor={metrics.totalReturnPct >= 0 ? "bg-emerald-600" : "bg-rose-600"}
-          />
-        </div>
-
-        {/* Charts Grid */}
-        <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
-          {/* Performance Chart */}
-          <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
-            <div className="mb-4 flex flex-col gap-3">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Portfolio Prestaties</h2>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Waarde ontwikkeling over tijd</p>
-                </div>
-                <div className="overflow-x-auto">
-                  <PeriodFilter
-                    selectedPeriod={selectedPeriod}
-                    onPeriodChange={setSelectedPeriod}
-                    customStartDate={customStartDate}
-                    customEndDate={customEndDate}
-                    onCustomDateChange={(start, end) => {
-                      setCustomStartDate(start)
-                      setCustomEndDate(end)
-                    }}
-                  />
-                </div>
-              </div>
-              {/* Period-specific metrics */}
-              <div className="flex items-center gap-4 rounded-lg bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
-                <div>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Periode Rendement</p>
-                  <p className={`text-lg font-bold ${periodMetrics.change >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                    <PrivacyText>{formatCurrency(periodMetrics.change)}</PrivacyText>
-                  </p>
-                </div>
-                <div className="h-8 w-px bg-slate-300 dark:bg-slate-600" />
-                <div>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Percentage</p>
-                  <p className={`text-lg font-bold ${periodMetrics.changePercent >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                    <PrivacyText>{periodMetrics.changePercent >= 0 ? '+' : ''}{periodMetrics.changePercent.toFixed(2)}%</PrivacyText>
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="h-[320px]">
-              <PerformanceChart data={performanceData} />
-            </div>
-          </div>
-
-          {/* Asset Type Allocation */}
-          <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Verdeling Type</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Aandelen vs ETFs</p>
-            </div>
-            <div className="h-[320px]">
-              {allocationData.length > 0 ? (
-                <AllocationChart data={allocationData} />
-              ) : (
-                <div className="flex h-full items-center justify-center text-slate-500 dark:text-slate-400">
-                  Geen data beschikbaar
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Stocks Allocation */}
-          <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Aandelen Verdeling</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400"><PrivacyText>{stocks.length} posities</PrivacyText></p>
-            </div>
-            <div className="h-[320px]">
-              {stocksAllocationData.length > 0 ? (
-                <AllocationChart data={stocksAllocationData} />
-              ) : (
-                <div className="flex h-full items-center justify-center text-slate-500">
-                  Geen aandelen posities
-                </div>
-              )}
-            </div>
+          <div className="lg:col-span-1">
+            <RiskPanel
+              maxDrawdownPct={maxDrawdownPct}
+              exposurePct={exposurePct}
+              investedValue={metrics.totalValue}
+              cashValue={cashTotal}
+              realizedPnL={metrics.totalRealizedPnL + metrics.totalDividendsReceived}
+              dividendYTD={portfolioTotals.totalDividendsReceived}
+            />
           </div>
         </div>
 
-        {/* ETFs Allocation Chart - separate row if ETFs exist */}
-        {etfsAllocationData.length > 0 && (
-          <div className="mb-8">
-            <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">ETFs Verdeling</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400"><PrivacyText>{etfs.length} posities</PrivacyText></p>
-              </div>
-              <div className="h-[320px]">
-                <AllocationChart data={etfsAllocationData} />
-              </div>
-            </div>
-          </div>
+        {/* Cash positions (compact, only when present) */}
+        {cashPositions.length > 0 && (
+          <CashPositionCard
+            positions={cashPositions}
+            onEdit={handleEditCash}
+            onDelete={handleDeleteCash}
+          />
         )}
 
-        {/* Sector Allocation Chart */}
-        {sectorData.length > 0 && (
-          <div className="mb-8">
-            <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Sector Verdeling</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Portfolio allocatie per sector</p>
-              </div>
-              <div className="h-[320px]">
-                <AllocationChart data={sectorData} />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Benchmark Comparison & Dividend/Alerts Grid */}
-        <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Benchmark Comparison */}
-          <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
-            <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        {/* LAYER 2 — Performance chart (2/3) + Top posities (1/3) */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          {/* Performance chart */}
+          <div className="lg:col-span-2 rounded-2xl bg-white dark:bg-slate-800 p-5 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Benchmark Vergelijking</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Vergelijk je portfolio met marktindices</p>
+                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Portfolio Prestaties</h2>
+                {periodMetrics.change !== 0 && (
+                  <p className={`text-sm font-medium mt-0.5 ${
+                    periodMetrics.change >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                  }`}>
+                    <PrivacyText>
+                      {periodMetrics.change >= 0 ? "+" : ""}{formatCurrency(periodMetrics.change)}
+                      {" "}({periodMetrics.changePercent >= 0 ? "+" : ""}{periodMetrics.changePercent.toFixed(2)}%)
+                      {" "}deze periode
+                    </PrivacyText>
+                  </p>
+                )}
               </div>
-              <div className="overflow-x-auto">
-                <BenchmarkSelector
-                  selectedBenchmark={selectedBenchmark}
-                  onBenchmarkChange={setSelectedBenchmark}
+              <div className="overflow-x-auto shrink-0">
+                <PeriodFilter
+                  selectedPeriod={selectedPeriod}
+                  onPeriodChange={setSelectedPeriod}
+                  customStartDate={customStartDate}
+                  customEndDate={customEndDate}
+                  onCustomDateChange={(start, end) => {
+                    setCustomStartDate(start)
+                    setCustomEndDate(end)
+                  }}
                 />
               </div>
             </div>
-            <div className="h-[320px]">
+            <div className="h-64 sm:h-80">
+              <PerformanceChart data={performanceData} costBasis={metrics.totalCost} />
+            </div>
+          </div>
+
+          {/* Top posities */}
+          <div className="lg:col-span-1 rounded-2xl bg-white dark:bg-slate-800 p-5 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Top Posities</h2>
+              <span className="text-xs text-slate-400 dark:text-slate-500">
+                <PrivacyText>{positions.length} totaal</PrivacyText>
+              </span>
+            </div>
+            <TopPositionsChart positions={topPositions} />
+          </div>
+        </div>
+
+        {/* LAYER 3 — Posities tabellen */}
+        {positions.length === 0 ? (
+          <div className="rounded-2xl bg-white dark:bg-slate-800 p-12 text-center shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
+            <BarChart2 className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600 mb-3" />
+            <p className="font-medium text-slate-600 dark:text-slate-400">Geen posities gevonden</p>
+            <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">
+              Importeer transacties of voeg handmatig aandelen toe
+            </p>
+          </div>
+        ) : (
+          <>
+            {stocks.length > 0 && (
+              <div id="stocks-section" className="scroll-mt-8">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                    Aandelen
+                    <span className="ml-2 text-sm font-normal text-slate-400 dark:text-slate-500">
+                      <PrivacyText>{stocks.length} · {formatCurrency(stocks.reduce((s, p) => s + p.currentValue, 0))}</PrivacyText>
+                    </span>
+                  </h2>
+                </div>
+                <PositionsTable positions={stocks} onDeletePosition={handleDeletePosition} />
+              </div>
+            )}
+            {etfs.length > 0 && (
+              <div id="etfs-section" className="scroll-mt-8">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                    ETFs
+                    <span className="ml-2 text-sm font-normal text-slate-400 dark:text-slate-500">
+                      <PrivacyText>{etfs.length} · {formatCurrency(etfs.reduce((s, p) => s + p.currentValue, 0))}</PrivacyText>
+                    </span>
+                  </h2>
+                </div>
+                <PositionsTable positions={etfs} onDeletePosition={handleDeletePosition} />
+              </div>
+            )}
+          </>
+        )}
+
+        {/* LAYER 4 — Secundaire analyse (inklapbaar op mobiel) */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {/* Benchmark */}
+          <div className="rounded-2xl bg-white dark:bg-slate-800 p-5 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Benchmark</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Vergelijk met marktindex</p>
+              </div>
+              <BenchmarkSelector selectedBenchmark={selectedBenchmark} onBenchmarkChange={setSelectedBenchmark} />
+            </div>
+            <div className="h-64">
               <BenchmarkChart data={benchmarkData} benchmarkType={selectedBenchmark} />
             </div>
           </div>
 
-          {/* Dividend Metrics & Alerts */}
-          <div className="space-y-6">
-            {/* Dividend Metrics Card */}
-            <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 p-6 shadow-sm ring-1 ring-emerald-900/5">
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold text-slate-900">Dividend Inkomen</h2>
-                <p className="text-sm text-slate-500">Verwacht jaarlijks inkomen</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-slate-600">Jaarlijks Inkomen</p>
-                  <p className="mt-1 text-2xl font-bold text-emerald-700">
-                    {formatCurrency(dividendMetrics.totalAnnualDividend)}
-                  </p>
+          {/* Dividend + Alerts */}
+          <div className="space-y-4">
+            {dividendMetrics.totalAnnualDividend > 0 && (
+              <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 p-5 ring-1 ring-emerald-900/5 dark:ring-emerald-700/30">
+                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-3">Dividend Inkomen</h2>
+                <div className="flex gap-6">
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">Jaarlijks</p>
+                    <p className="mt-1 text-xl font-bold text-emerald-700 dark:text-emerald-400">
+                      <PrivacyText>{formatCurrency(dividendMetrics.totalAnnualDividend)}</PrivacyText>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">Gem. Yield</p>
+                    <p className="mt-1 text-xl font-bold text-emerald-700 dark:text-emerald-400">
+                      {dividendMetrics.averageYield.toFixed(2)}%
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-600">Gemiddeld Yield</p>
-                  <p className="mt-1 text-2xl font-bold text-emerald-700">
-                    {dividendMetrics.averageYield.toFixed(2)}%
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4 rounded-lg bg-white/50 px-3 py-2">
-                <p className="text-sm text-slate-600">
-                  {dividendMetrics.dividendPositions} {dividendMetrics.dividendPositions === 1 ? 'positie betaalt' : 'posities betalen'} dividend
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  {dividendMetrics.dividendPositions} {dividendMetrics.dividendPositions === 1 ? "positie betaalt" : "posities betalen"} dividend
                 </p>
               </div>
-            </div>
-
-            {/* Price Alerts */}
-            <AlertsPanel
-              alerts={alerts}
-              onCreateAlert={handleCreateAlert}
-              onDeleteAlert={handleDeleteAlert}
-            />
+            )}
+            <AlertsPanel alerts={alerts} onCreateAlert={handleCreateAlert} onDeleteAlert={handleDeleteAlert} />
           </div>
         </div>
 
-        {/* Aandelen Table */}
-        {stocks.length > 0 && (
-          <div id="stocks-section" className="mb-8 scroll-mt-8">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">Aandelen</h2>
-                <p className="text-sm text-slate-500">
-                  {stocks.length} positie{stocks.length !== 1 ? "s" : ""} · Waarde: {formatCurrency(stocks.reduce((sum, p) => sum + p.currentValue, 0))}
-                </p>
-              </div>
-            </div>
-            <PositionsTable positions={stocks} onDeletePosition={handleDeletePosition} />
-          </div>
-        )}
+        {/* LAYER 5 — Tools */}
+        <CompoundCalculator />
 
-        {/* ETFs Table */}
-        {etfs.length > 0 && (
-          <div id="etfs-section" className="mb-8 scroll-mt-8">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">ETFs</h2>
-                <p className="text-sm text-slate-500">
-                  {etfs.length} positie{etfs.length !== 1 ? "s" : ""} · Waarde: {formatCurrency(etfs.reduce((sum, p) => sum + p.currentValue, 0))}
-                </p>
-              </div>
-            </div>
-            <PositionsTable positions={etfs} onDeletePosition={handleDeletePosition} />
-          </div>
-        )}
-
-        {/* Compound Interest Calculator */}
-        <div className="mb-8">
-          <CompoundCalculator />
-        </div>
-
-        {/* Empty State */}
-        {positions.length === 0 && (
-          <div className="rounded-xl bg-white dark:bg-slate-800 p-12 text-center shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
-            <p className="text-slate-500 dark:text-slate-400">Geen posities gevonden</p>
-            <p className="mt-2 text-sm text-slate-400 dark:text-slate-500">
-              Importeer transacties of voeg handmatig aandelen toe
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Modals */}
