@@ -44,6 +44,16 @@ export default function DashboardPage() {
     isManual: boolean
     manualPositionId?: string
   }>({ show: false, isin: '', product: '', isManual: false })
+
+  // Portfolio-level totals that can't be derived from open positions alone:
+  // - realizedPnLAll: includes fully sold positions (quantity = 0) which are filtered out of `positions`
+  // - soldCostBasis: total cost of all sold shares (needed for correct return % denominator)
+  // - totalDividendsReceived: all dividends ever received (not included in P&L above)
+  const [portfolioTotals, setPortfolioTotals] = useState({
+    realizedPnLAll: 0,
+    soldCostBasis: 0,
+    totalDividendsReceived: 0,
+  })
   const { showToast } = useToast()
 
   async function loadDashboard() {
@@ -143,6 +153,10 @@ export default function DashboardPage() {
 
       const grouped: Record<string, Position> = {}
 
+      // Portfolio-level accumulators (not derivable from open positions only)
+      let accRealizedPnL = 0
+      let accSoldCostBasis = 0
+
       for (const tx of transactions as Transaction[]) {
         const key = `${tx.product}__${tx.isin || ""}`
 
@@ -206,6 +220,10 @@ export default function DashboardPage() {
           // realizedPnL = proceeds - cost basis (fees already included in total)
           const realizedGainOnSale = total - costBasis
           grouped[key].realizedPnL += realizedGainOnSale
+
+          // Accumulate portfolio-level totals (survive even if this position hits qty=0)
+          accRealizedPnL   += realizedGainOnSale
+          accSoldCostBasis += costBasis
 
           // Make sure invested doesn't go negative due to rounding
           if (grouped[key].invested < 0) grouped[key].invested = 0
@@ -300,6 +318,16 @@ export default function DashboardPage() {
         .filter(Boolean) as Position[]
 
       const sortedPositions = calculatedPositions.sort((a, b) => b.currentValue - a.currentValue)
+
+      // Total dividends received across ALL positions (including sold ones)
+      const totalDividendsReceived = (dividendData || [])
+        .reduce((sum, d) => sum + Math.abs(d.total_eur || 0), 0)
+
+      setPortfolioTotals({
+        realizedPnLAll:         accRealizedPnL,
+        soldCostBasis:          accSoldCostBasis,
+        totalDividendsReceived,
+      })
 
       setPositions(sortedPositions)
       setLoading(false)
@@ -556,39 +584,51 @@ export default function DashboardPage() {
     const stocksList = positions.filter(p => !p.isETF)
     const etfsList = positions.filter(p => p.isETF)
 
+    // ── Basis ────────────────────────────────────────────────────────────────
     const totalValue = positions.reduce((sum, p) => sum + p.currentValue, 0)
-    const totalCost = positions.reduce((sum, p) => sum + p.invested, 0)
-    const totalFees = positions.reduce((sum, p) => sum + p.totalFees, 0)
-    const totalRealizedPnL = positions.reduce((sum, p) => sum + p.realizedPnL, 0)
+    const totalCost  = positions.reduce((sum, p) => sum + p.invested,     0)
+    const totalFees  = positions.reduce((sum, p) => sum + p.totalFees,    0)
 
-    // Unrealized P&L = current value of open positions - cost basis
+    // ── Unrealized P&L ───────────────────────────────────────────────────────
+    // Current market value minus cost basis of open positions.
     const unrealizedPnL = totalValue - totalCost
 
-    // Total return = unrealized gains on open positions + realized gains from closed positions
-    // Fees are already included in total_eur from DEGIRO, so we don't subtract them again
-    const totalReturn = unrealizedPnL + totalRealizedPnL
-    const totalReturnPct = totalCost > 0 ? (totalReturn / totalCost) * 100 : 0
+    // ── Realized P&L ────────────────────────────────────────────────────────
+    // Bug fix: use portfolioTotals.realizedPnLAll instead of summing positions[].realizedPnL.
+    // Reason: positions with quantity=0 (fully sold) are filtered out, losing their P&L.
+    const totalRealizedPnL = portfolioTotals.realizedPnLAll
 
-    // Calculate daily P&L
-    let positionsWithPreviousClose = 0
-    let positionsWithoutPreviousClose = 0
+    // ── Dividends ────────────────────────────────────────────────────────────
+    // Bug fix: dividends received are return, not just informational.
+    const totalDividendsReceived = portfolioTotals.totalDividendsReceived
 
+    // ── Total return ─────────────────────────────────────────────────────────
+    // = unrealized gain on open positions
+    // + realized gain from ALL sells (including fully closed positions)
+    // + dividends received
+    const totalReturn = unrealizedPnL + totalRealizedPnL + totalDividendsReceived
+
+    // ── Return % ─────────────────────────────────────────────────────────────
+    // Bug fix: denominator must be total capital ever deployed, not just current cost basis.
+    // Using only open-position cost basis inflates % when proceeds from sells are reinvested.
+    // Total capital deployed = cost basis of open positions + cost basis of sold positions.
+    const totalCapitalDeployed = totalCost + portfolioTotals.soldCostBasis
+    const totalReturnPct = totalCapitalDeployed > 0
+      ? (totalReturn / totalCapitalDeployed) * 100
+      : 0
+
+    // ── Daily P&L ────────────────────────────────────────────────────────────
     const totalDailyPnL = positions.reduce((sum, p) => {
-      const hasPreviousClose = p.dayChange !== undefined && p.previousClose !== undefined
-      const dailyChange = hasPreviousClose ? (p.dayChange! * p.quantity) : 0
-
-      if (hasPreviousClose) {
-        positionsWithPreviousClose++
-      } else {
-        positionsWithoutPreviousClose++
-      }
-
-      return sum + dailyChange
+      if (p.dayChange === undefined || p.previousClose === undefined) return sum
+      return sum + p.dayChange * p.quantity
     }, 0)
 
-    // Daily P&L calculated (server-side logging only)
-
-    const totalDailyPnLPercent = totalValue > 0 ? (totalDailyPnL / totalValue) * 100 : 0
+    // Bug fix: daily % should use yesterday's portfolio value as denominator, not today's.
+    // Today's value already includes the gain, so dividing by it understates the move.
+    const yesterdayValue = totalValue - totalDailyPnL
+    const totalDailyPnLPercent = yesterdayValue > 0
+      ? (totalDailyPnL / yesterdayValue) * 100
+      : 0
 
     // Calculate sector allocation
     const sectorMap: Record<string, { value: number; count: number }> = {}
@@ -618,15 +658,17 @@ export default function DashboardPage() {
         totalCost,
         totalFees,
         totalRealizedPnL,
+        totalDividendsReceived,
         unrealizedPnL,
         totalReturn,
         totalReturnPct,
+        totalCapitalDeployed,
         totalDailyPnL,
         totalDailyPnLPercent,
       },
       sectorData: sectorAllocation,
     }
-  }, [positions])
+  }, [positions, portfolioTotals])
 
   // Allocation data for pie charts
   const stocksAllocationData = useMemo(() => {
@@ -907,11 +949,11 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-green-600">Gerealiseerd</p>
-                <p className="mt-1 text-2xl font-bold text-green-900">
+                <p className={`mt-1 text-2xl font-bold ${metrics.totalRealizedPnL >= 0 ? 'text-green-900' : 'text-red-900'}`}>
                   <PrivacyText>{formatCurrency(metrics.totalRealizedPnL)}</PrivacyText>
                 </p>
                 <p className="mt-1 text-sm text-green-700">
-                  Uit verkopen
+                  Verkopen + dividend
                 </p>
               </div>
               <div className="rounded-lg bg-green-100 p-2">
@@ -928,7 +970,7 @@ export default function DashboardPage() {
                   <PrivacyText>{formatCurrency(metrics.unrealizedPnL)}</PrivacyText>
                 </p>
                 <p className="mt-1 text-sm text-amber-700">
-                  Huidige posities
+                  Marktwaarde − kostenbasis
                 </p>
               </div>
               <div className="rounded-lg bg-amber-100 p-2">
@@ -985,8 +1027,12 @@ export default function DashboardPage() {
             iconColor="bg-indigo-600"
           />
           <MetricCard
-            title="Geïnvesteerd"
+            title="Kostenbasis"
             value={formatCurrency(metrics.totalCost)}
+            change={{
+              value: `Totaal ingezet: ${formatCurrency(metrics.totalCapitalDeployed)}`,
+              isPositive: true,
+            }}
             icon={PiggyBank}
             iconColor="bg-purple-600"
           />
@@ -994,7 +1040,7 @@ export default function DashboardPage() {
             title="Totaal Rendement"
             value={formatCurrency(metrics.totalReturn)}
             change={{
-              value: `Incl. fees & verkopen`,
+              value: `Incl. dividenden & verkopen`,
               isPositive: metrics.totalReturn >= 0,
             }}
             icon={TrendingUp}
@@ -1003,6 +1049,10 @@ export default function DashboardPage() {
           <MetricCard
             title="Return %"
             value={`${metrics.totalReturnPct >= 0 ? "+" : ""}${metrics.totalReturnPct.toFixed(2)}%`}
+            change={{
+              value: `Op ingezet kapitaal`,
+              isPositive: metrics.totalReturnPct >= 0,
+            }}
             icon={Percent}
             iconColor={metrics.totalReturnPct >= 0 ? "bg-emerald-600" : "bg-rose-600"}
           />
