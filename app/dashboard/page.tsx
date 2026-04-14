@@ -51,8 +51,9 @@ export default function DashboardPage() {
   // All-time snapshots for max drawdown + YTD calculation
   const [allSnapshots, setAllSnapshots] = useState<{ snapshot_date: string; total_value: number; total_cost: number }[]>([])
 
-  // Earliest trade date — used to prepend an inception point to the ALL-period chart
-  const [firstTransactionDate, setFirstTransactionDate] = useState<string | null>(null)
+  // Transaction-based timeline: one entry per unique trade date with cumulative
+  // cost basis.  Used to fill in history before the first portfolio snapshot.
+  const [txTimeline, setTxTimeline] = useState<{ date: string; cost: number }[]>([])
 
   // Portfolio-level totals that can't be derived from open positions alone:
   // - realizedPnLAll: includes fully sold positions (quantity = 0) which are filtered out of `positions`
@@ -165,12 +166,25 @@ export default function DashboardPage() {
       // Portfolio-level accumulators (not derivable from open positions only)
       let accRealizedPnL = 0
       let accSoldCostBasis = 0
-      let firstTxDate: string | null = null
+
+      // Build a per-date cost-basis timeline from transactions so we can show
+      // portfolio history for dates before the first portfolio_snapshot exists.
+      let runningCost = 0
+      const costByDate = new Map<string, number>()
 
       for (const tx of transactions as Transaction[]) {
-        if (tx.trade_date && (!firstTxDate || tx.trade_date < firstTxDate)) {
-          firstTxDate = tx.trade_date
-        }
+        if (!tx.trade_date) continue
+        const total = Math.abs(Number(tx.total_eur || 0))
+        if (tx.transaction_type === 'buy')  runningCost += total
+        else if (tx.transaction_type === 'sell') runningCost = Math.max(0, runningCost - total)
+        costByDate.set(tx.trade_date, runningCost)
+      }
+
+      const builtTxTimeline = Array.from(costByDate.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, cost]) => ({ date, cost }))
+
+      for (const tx of transactions as Transaction[]) {
         const key = `${tx.product}__${tx.isin || ""}`
 
         if (!grouped[key]) {
@@ -341,7 +355,7 @@ export default function DashboardPage() {
         soldCostBasis:          accSoldCostBasis,
         totalDividendsReceived,
       })
-      setFirstTransactionDate(firstTxDate)
+      setTxTimeline(builtTxTimeline)
       setPositions(sortedPositions)
       setLoading(false)
     } catch (error) {
@@ -808,42 +822,45 @@ export default function DashboardPage() {
           const { snapshots } = await res.json()
 
           if (snapshots && snapshots.length > 0) {
-            // Use real historical data
-            const historicalData: { date: string; value: number; invested: number }[] = snapshots.map((snap: any) => ({
-              date: new Date(snap.snapshot_date).toLocaleDateString('nl-NL', {
-                day: 'numeric',
-                month: 'short'
-              }),
-              value: Number(snap.total_value),
-              invested: Number(snap.total_cost),
-            }))
+            // Convert snapshots to chart points
+            const snapshotPoints: { date: string; value: number; invested: number; isoDate: string }[] =
+              snapshots.map((snap: any) => ({
+                isoDate:  snap.snapshot_date as string,
+                date:     new Date(snap.snapshot_date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
+                value:    Number(snap.total_value),
+                invested: Number(snap.total_cost),
+              }))
 
-            // For ALL period: prepend an inception point at the first transaction date
-            // so the chart starts from when the portfolio actually began, not when
-            // we started saving snapshots (April 8).
-            if (selectedPeriod === 'ALL' && firstTransactionDate) {
-              const firstSnapDate = snapshots[0]?.snapshot_date
-              if (firstSnapDate && firstTransactionDate < firstSnapDate) {
-                const firstSnap = snapshots[0]
-                historicalData.unshift({
-                  date: new Date(firstTransactionDate).toLocaleDateString('nl-NL', {
-                    day: 'numeric', month: 'short', year: '2-digit',
-                  }),
-                  // At inception P&L = 0 — value equals cost basis of earliest snapshot
-                  value:    Number(firstSnap.total_cost),
-                  invested: Number(firstSnap.total_cost),
-                })
+            const firstSnapIso = snapshots[0]?.snapshot_date as string | undefined
+
+            // Prepend transaction-based cost-basis points for dates BEFORE the first
+            // snapshot so the chart starts from when investments actually began.
+            const preTxPoints: { date: string; value: number; invested: number }[] = []
+
+            if (firstSnapIso && txTimeline.length > 0) {
+              for (const pt of txTimeline) {
+                if (pt.date < firstSnapIso) {
+                  preTxPoints.push({
+                    date:     new Date(pt.date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: '2-digit' }),
+                    value:    pt.cost,   // before price data: value = cost (0 P&L)
+                    invested: pt.cost,
+                  })
+                }
               }
             }
 
-            // Add current day's data if not already included
+            const historicalData = [
+              ...preTxPoints,
+              ...snapshotPoints.map(({ isoDate: _iso, ...rest }) => rest),
+            ]
+
+            // Add today's live values if today not already in snapshots
             const today = new Date().toISOString().split('T')[0]
             const hasToday = snapshots.some((s: any) => s.snapshot_date === today)
-
             if (!hasToday) {
               historicalData.push({
-                date: new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
-                value: metrics.totalValue,
+                date:     new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
+                value:    metrics.totalValue,
                 invested: metrics.totalCost,
               })
             }
@@ -865,7 +882,7 @@ export default function DashboardPage() {
     }
 
     loadPerformanceData()
-  }, [metrics.totalCost, metrics.totalValue, selectedPeriod, customStartDate, customEndDate, portfolioId, firstTransactionDate])
+  }, [metrics.totalCost, metrics.totalValue, selectedPeriod, customStartDate, customEndDate, portfolioId, txTimeline])
 
   // Load cash positions when portfolio ID is available
   useEffect(() => {
