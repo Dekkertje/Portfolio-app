@@ -833,13 +833,24 @@ export default function DashboardPage() {
 
             const firstSnapIso = snapshots[0]?.snapshot_date as string | undefined
 
-            // Prepend transaction-based cost-basis points for dates BEFORE the first
-            // snapshot so the chart starts from when investments actually began.
+            // Calculate the period start date (same logic as save-snapshot API)
+            const periodStart = new Date()
+            if      (selectedPeriod === '1W')  periodStart.setDate(periodStart.getDate() - 7)
+            else if (selectedPeriod === '1M')  periodStart.setMonth(periodStart.getMonth() - 1)
+            else if (selectedPeriod === '3M')  periodStart.setMonth(periodStart.getMonth() - 3)
+            else if (selectedPeriod === '6M')  periodStart.setMonth(periodStart.getMonth() - 6)
+            else if (selectedPeriod === '1Y')  periodStart.setFullYear(periodStart.getFullYear() - 1)
+            else if (selectedPeriod === 'YTD') { periodStart.setMonth(0); periodStart.setDate(1) }
+            else if (selectedPeriod === 'ALL') periodStart.setFullYear(2000)  // effectively "all time"
+            const periodStartIso = periodStart.toISOString().split('T')[0]
+
+            // Prepend transaction-based cost-basis points for dates that fall
+            // within the selected period but BEFORE the first snapshot.
             const preTxPoints: { date: string; value: number; invested: number }[] = []
 
             if (firstSnapIso && txTimeline.length > 0) {
               for (const pt of txTimeline) {
-                if (pt.date < firstSnapIso) {
+                if (pt.date >= periodStartIso && pt.date < firstSnapIso) {
                   preTxPoints.push({
                     date:     new Date(pt.date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: '2-digit' }),
                     value:    pt.cost,   // before price data: value = cost (0 P&L)
