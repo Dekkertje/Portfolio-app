@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase/client"
 import { DashboardLayout } from "@/components/layout/DashboardLayout"
 import { MetricCard } from "@/components/dashboard/MetricCard"
 import { AllocationChart } from "@/components/dashboard/AllocationChart"
-import { PerformanceChart } from "@/components/dashboard/PerformanceChart"
+import { PerformanceChart, ChartMode, PerformanceData as PerfPoint } from "@/components/dashboard/PerformanceChart"
 import { PositionsTable } from "@/components/dashboard/PositionsTable"
 import { Button } from "@/components/ui/Button"
 import { useToast } from "@/components/ui/Toast"
@@ -797,12 +797,15 @@ export default function DashboardPage() {
 
   // Performance data for line chart - based on selected period
   // Use real historical snapshot data if available
-  const [performanceData, setPerformanceData] = useState<{ date: string; value: number; invested: number }[]>([])
+  const [performanceData, setPerformanceData] = useState<PerfPoint[]>([])
+
+  // Toggle between portfolio-value view and P&L view
+  const [chartMode, setChartMode] = useState<ChartMode>("value")
 
   useEffect(() => {
     async function loadPerformanceData() {
       // Always generate simulated data as fallback first
-      const simulatedData = generatePerformanceData(
+      const simulatedData: PerfPoint[] = generatePerformanceData(
         metrics.totalCost,
         metrics.totalValue,
         selectedPeriod,
@@ -823,13 +826,23 @@ export default function DashboardPage() {
 
           if (snapshots && snapshots.length > 0) {
             // Convert snapshots to chart points
-            const snapshotPoints: { date: string; value: number; invested: number; isoDate: string }[] =
-              snapshots.map((snap: any) => ({
-                isoDate:  snap.snapshot_date as string,
-                date:     new Date(snap.snapshot_date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
-                value:    Number(snap.total_value),
-                invested: Number(snap.total_cost),
-              }))
+            // pnl = snap.total_return (unrealized + realized + dividends stored at snapshot time)
+            // fallback: value - invested (unrealized only) when total_return is not available
+            const snapshotPoints: (PerfPoint & { isoDate: string })[] =
+              snapshots.map((snap: any) => {
+                const value    = Number(snap.total_value)
+                const invested = Number(snap.total_cost)
+                const pnl      = snap.total_return != null
+                  ? Number(snap.total_return)
+                  : value - invested
+                return {
+                  isoDate: snap.snapshot_date as string,
+                  date:    new Date(snap.snapshot_date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
+                  value,
+                  invested,
+                  pnl,
+                }
+              })
 
             const firstSnapIso = snapshots[0]?.snapshot_date as string | undefined
 
@@ -846,7 +859,7 @@ export default function DashboardPage() {
 
             // Prepend transaction-based cost-basis points for dates that fall
             // within the selected period but BEFORE the first snapshot.
-            const preTxPoints: { date: string; value: number; invested: number }[] = []
+            const preTxPoints: PerfPoint[] = []
 
             if (firstSnapIso && txTimeline.length > 0) {
               for (const pt of txTimeline) {
@@ -855,6 +868,7 @@ export default function DashboardPage() {
                     date:     new Date(pt.date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: '2-digit' }),
                     value:    pt.cost,   // before price data: value = cost (0 P&L)
                     invested: pt.cost,
+                    pnl:      0,         // no P&L data before snapshot tracking began
                   })
                 }
               }
@@ -873,6 +887,7 @@ export default function DashboardPage() {
                 date:     new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
                 value:    metrics.totalValue,
                 invested: metrics.totalCost,
+                pnl:      metrics.totalReturn,  // live total return (unrealized + realized + dividends)
               })
             }
 
@@ -1079,7 +1094,8 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           {/* Performance chart */}
           <div className="lg:col-span-2 rounded-2xl bg-white dark:bg-slate-800 p-5 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            {/* Header row: title + mode toggle */}
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Portfolio Prestaties</h2>
                 {periodMetrics.change !== 0 && (
@@ -1094,21 +1110,51 @@ export default function DashboardPage() {
                   </p>
                 )}
               </div>
-              <div className="overflow-x-auto shrink-0">
-                <PeriodFilter
-                  selectedPeriod={selectedPeriod}
-                  onPeriodChange={setSelectedPeriod}
-                  customStartDate={customStartDate}
-                  customEndDate={customEndDate}
-                  onCustomDateChange={(start, end) => {
-                    setCustomStartDate(start)
-                    setCustomEndDate(end)
-                  }}
-                />
+              {/* Waarde / Winst-Verlies toggle */}
+              <div className="flex items-center gap-1 rounded-lg bg-slate-100 dark:bg-slate-700/60 p-1 shrink-0 self-start">
+                <button
+                  onClick={() => setChartMode("value")}
+                  className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                    chartMode === "value"
+                      ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  }`}
+                >
+                  Waarde
+                </button>
+                <button
+                  onClick={() => setChartMode("pnl")}
+                  className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                    chartMode === "pnl"
+                      ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  }`}
+                >
+                  Winst / Verlies
+                </button>
               </div>
             </div>
+
+            {/* Period filter */}
+            <div className="mb-4 overflow-x-auto">
+              <PeriodFilter
+                selectedPeriod={selectedPeriod}
+                onPeriodChange={setSelectedPeriod}
+                customStartDate={customStartDate}
+                customEndDate={customEndDate}
+                onCustomDateChange={(start, end) => {
+                  setCustomStartDate(start)
+                  setCustomEndDate(end)
+                }}
+              />
+            </div>
+
             <div className="h-64 sm:h-80">
-              <PerformanceChart data={performanceData} costBasis={metrics.totalCost} />
+              <PerformanceChart
+                data={performanceData}
+                mode={chartMode}
+                costBasis={chartMode === "value" ? metrics.totalCost : undefined}
+              />
             </div>
           </div>
 
