@@ -100,8 +100,8 @@ export default function LoginPage() {
           <Image
             src="/images/dekkertracker-logo.png"
             alt="DekkerTracker"
-            width={260}
-            height={70}
+            width={340}
+            height={90}
             priority
           />
         </div>
@@ -149,8 +149,8 @@ export default function LoginPage() {
           <Image
             src="/images/dekkertracker-logo.png"
             alt="DekkerTracker"
-            width={220}
-            height={60}
+            width={280}
+            height={75}
             priority
           />
         </div>

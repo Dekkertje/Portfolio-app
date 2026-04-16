@@ -96,9 +96,9 @@ export function Navigation() {
             <Image
               src="/images/dekkertracker-logo.png"
               alt="DekkerTracker"
-              width={280}
-              height={80}
-              className="h-auto w-full max-w-[260px]"
+              width={320}
+              height={90}
+              className="h-auto w-full max-w-[300px]"
               priority
             />
           </div>
