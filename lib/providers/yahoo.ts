@@ -20,7 +20,8 @@ const HEADERS = { "User-Agent": "Mozilla/5.0" }
 export type YahooQuote = {
   symbol:           string
   price:            number
-  previousClose:    number
+  openPrice:        number       // today's market open price
+  previousClose:    number       // yesterday's close (fallback if no open available)
   dailyChange:      number       // price − previousClose
   currency:         string       // as reported by Yahoo (USD, EUR, GBp, …)
   priceDate:        string       // YYYY-MM-DD
@@ -73,12 +74,25 @@ export class YahooError extends Error {
 
 /**
  * Fetch the latest quote for a Yahoo Finance symbol.
- * Uses the v8/chart endpoint (5-day window gives us yesterday's close too).
+ *
+ * Uses the 1-day intraday chart (interval=5m, range=1d) so we get:
+ *   - regularMarketPrice  → current price
+ *   - first candle open   → today's actual opening price (reliable)
+ *   - meta.previousClose  → yesterday's close (fallback for open when market not yet opened)
  *
  * Returns null when the symbol is not found or has no price data.
  */
 export async function getQuote(symbol: string): Promise<YahooQuote | null> {
-  const url = `${BASE_V8}/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`
+  // Primary: intraday chart (5m/1d) — gives us the first-candle open price
+  const chartResult = await fetchChartQuote(symbol)
+  if (chartResult) return chartResult
+
+  // Fallback: v7 quote endpoint — less likely to be rate-limited
+  return fetchV7Quote(symbol)
+}
+
+async function fetchChartQuote(symbol: string): Promise<YahooQuote | null> {
+  const url = `${BASE_V8}/chart/${encodeURIComponent(symbol)}?interval=5m&range=1d`
 
   let res: Response
   try {
@@ -87,8 +101,10 @@ export async function getQuote(symbol: string): Promise<YahooQuote | null> {
     return null
   }
 
-  const json = await res.json()
-  const result = json?.chart?.result?.[0]
+  let json: unknown
+  try { json = await res.json() } catch { return null }
+
+  const result = (json as any)?.chart?.result?.[0]
   const meta   = result?.meta
 
   if (!meta) return null
@@ -96,21 +112,67 @@ export async function getQuote(symbol: string): Promise<YahooQuote | null> {
   const price = meta.regularMarketPrice as number | undefined
   if (!price || price <= 0) return null
 
-  const priceDate = new Date(meta.regularMarketTime * 1000)
+  const priceDate = new Date((meta.regularMarketTime as number) * 1000)
     .toISOString()
     .split("T")[0]
 
   const dailyChange   = (meta.regularMarketChange as number | undefined) ?? 0
   const previousClose = (meta.previousClose ?? meta.chartPreviousClose ?? price - dailyChange) as number
 
+  // Opening price = official regularMarketOpen (auction price at market open).
+  // The first 5m candle can be a pre-market candle with a very different price,
+  // which would produce wildly incorrect day-change values.
+  const regularOpen = meta.regularMarketOpen as number | undefined
+  const openPrice   = (regularOpen && regularOpen > 0) ? regularOpen : previousClose
+
   return {
     symbol,
     price,
+    openPrice,
     previousClose,
     dailyChange,
     currency:    (meta.currency as string) ?? "USD",
     priceDate,
     marketState: (meta.marketState as string) ?? "CLOSED",
+  }
+}
+
+async function fetchV7Quote(symbol: string): Promise<YahooQuote | null> {
+  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`
+
+  let res: Response
+  try {
+    res = await fetchWithRetry(url)
+  } catch {
+    return null
+  }
+
+  let json: unknown
+  try { json = await res.json() } catch { return null }
+
+  const q = (json as any)?.quoteResponse?.result?.[0]
+  if (!q) return null
+
+  const price = q.regularMarketPrice as number | undefined
+  if (!price || price <= 0) return null
+
+  const priceDate = new Date((q.regularMarketTime as number) * 1000)
+    .toISOString()
+    .split("T")[0]
+
+  const previousClose = (q.regularMarketPreviousClose ?? q.regularMarketOpen ?? price) as number
+  const openPrice     = (q.regularMarketOpen ?? previousClose) as number
+  const dailyChange   = (q.regularMarketChange ?? price - previousClose) as number
+
+  return {
+    symbol,
+    price,
+    openPrice,
+    previousClose,
+    dailyChange,
+    currency:    (q.currency as string) ?? "USD",
+    priceDate,
+    marketState: (q.marketState as string) ?? "CLOSED",
   }
 }
 

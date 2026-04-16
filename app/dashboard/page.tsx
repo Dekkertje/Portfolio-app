@@ -5,17 +5,17 @@ import { supabase } from "@/lib/supabase/client"
 import { DashboardLayout } from "@/components/layout/DashboardLayout"
 import { MetricCard } from "@/components/dashboard/MetricCard"
 import { AllocationChart } from "@/components/dashboard/AllocationChart"
+import { AllocationBreakdown } from "@/components/dashboard/AllocationBreakdown"
 import { PerformanceChart, ChartMode, PerformanceData as PerfPoint } from "@/components/dashboard/PerformanceChart"
 import { PositionsTable } from "@/components/dashboard/PositionsTable"
 import { Button } from "@/components/ui/Button"
 import { useToast } from "@/components/ui/Toast"
 import { RefreshCw, Plus, DollarSign, BarChart2 } from "lucide-react"
-import { Transaction, Price, Position, PriceAlert } from "@/lib/types"
-import { formatCurrency, isETF, getSector, generatePerformanceData, generateBenchmarkData, BenchmarkType } from "@/lib/utils"
+import { Transaction, Price, Position } from "@/lib/types"
+import { formatCurrency, isETF, getSector, generatePerformanceData, BenchmarkType } from "@/lib/utils"
 import { PeriodFilter, Period } from "@/components/dashboard/PeriodFilter"
 import { BenchmarkChart } from "@/components/dashboard/BenchmarkChart"
 import { BenchmarkSelector } from "@/components/dashboard/BenchmarkSelector"
-import { AlertsPanel } from "@/components/dashboard/AlertsPanel"
 import { PrivacyText } from "@/components/ui/PrivacyText"
 import { AddManualPositionModal } from "@/components/dashboard/AddManualPositionModal"
 import { CashPositionModal } from "@/components/dashboard/CashPositionModal"
@@ -32,9 +32,11 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('1M')
   const [selectedBenchmark, setSelectedBenchmark] = useState<BenchmarkType>('sp500')
+  const [benchmarkPeriod, setBenchmarkPeriod] = useState<Period>('ALL')
+  const [benchmarkCustomStart, setBenchmarkCustomStart] = useState('')
+  const [benchmarkCustomEnd, setBenchmarkCustomEnd] = useState('')
   const [customStartDate, setCustomStartDate] = useState<string>('')
   const [customEndDate, setCustomEndDate] = useState<string>('')
-  const [alerts, setAlerts] = useState<PriceAlert[]>([])
   const [portfolioId, setPortfolioId] = useState<string | null>(null)
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true)
   const [showAddPositionModal, setShowAddPositionModal] = useState(false)
@@ -54,6 +56,15 @@ export default function DashboardPage() {
   // Transaction-based timeline: one entry per unique trade date with cumulative
   // cost basis.  Used to fill in history before the first portfolio snapshot.
   const [txTimeline, setTxTimeline] = useState<{ date: string; cost: number }[]>([])
+
+  // Full reconstructed portfolio history from Yahoo Finance prices.
+  // Fetched once via /api/portfolio-history and used for pre-snapshot P&L.
+  const [portfolioHistory, setPortfolioHistory] = useState<{ date: string; value: number; cost: number; pnl: number }[] | null>(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
+
+  // Real benchmark data from Yahoo Finance
+  const [benchmarkHistory, setBenchmarkHistory] = useState<{ date: string; value: number }[] | null>(null)
+  const [benchmarkLoading, setBenchmarkLoading] = useState(false)
 
   // Portfolio-level totals that can't be derived from open positions alone:
   // - realizedPnLAll: includes fully sold positions (quantity = 0) which are filtered out of `positions`
@@ -87,7 +98,6 @@ export default function DashboardPage() {
       }
 
       setPortfolioId(portfolio.id)
-      loadAlerts()
 
       const { data: transactions, error: txError } = await supabase
         .from("transactions")
@@ -304,10 +314,12 @@ export default function DashboardPage() {
 
           // Daily P&L calculation - use previous_close from database
           // Note: If previous_close is not available, we cannot calculate daily P&L accurately
-          const previousClose = priceData?.previous_close ? Number(priceData.previous_close) : undefined
-          const dayChange = previousClose ? currentPrice - previousClose : undefined
-          const dayChangePercent = (previousClose && dayChange) ? (dayChange / previousClose) * 100 : undefined
-          const dayChangeValue = dayChange ? dayChange * p.quantity : undefined
+          const previousClose = priceData?.previous_close != null ? Number(priceData.previous_close) : undefined
+          const dayChange = previousClose != null ? currentPrice - previousClose : undefined
+          const dayChangePercent = (previousClose != null && previousClose !== 0 && dayChange != null)
+            ? (dayChange / previousClose) * 100
+            : undefined
+          const dayChangeValue = dayChange != null ? dayChange * p.quantity : undefined
 
           // Get sector
           const sector = getSector(p.product, p.isin)
@@ -370,57 +382,6 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function loadAlerts() {
-    try {
-      const res = await fetch("/api/alerts")
-      if (res.ok) {
-        const data = await res.json()
-        setAlerts(data.alerts || [])
-      }
-    } catch (error) {
-      console.error("Error loading alerts:", error)
-    }
-  }
-
-  async function handleCreateAlert(alert: Omit<PriceAlert, "id" | "user_id" | "created_at">) {
-    try {
-      const res = await fetch("/api/alerts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(alert),
-      })
-
-      if (res.ok) {
-        showToast("Alert aangemaakt!", "success")
-        loadAlerts()
-      } else {
-        const data = await res.json()
-        showToast(data.error || "Fout bij aanmaken alert", "error")
-      }
-    } catch (error) {
-      console.error("Error creating alert:", error)
-      showToast("Er ging iets mis bij het aanmaken van de alert", "error")
-    }
-  }
-
-  async function handleDeleteAlert(id: string) {
-    try {
-      const res = await fetch(`/api/alerts?id=${id}`, {
-        method: "DELETE",
-      })
-
-      if (res.ok) {
-        showToast("Alert verwijderd", "success")
-        loadAlerts()
-      } else {
-        const data = await res.json()
-        showToast(data.error || "Fout bij verwijderen alert", "error")
-      }
-    } catch (error) {
-      console.error("Error deleting alert:", error)
-      showToast("Er ging iets mis bij het verwijderen van de alert", "error")
-    }
-  }
 
   async function savePortfolioSnapshot() {
     if (!portfolioId) return
@@ -558,7 +519,11 @@ export default function DashboardPage() {
 
       const data = await res.json()
 
-      // Price refresh completed (sensitive data not logged to console)
+      // Log errors to console so we can diagnose skipped symbols
+      if (data.errors?.length) {
+        // eslint-disable-next-line no-console
+        console.warn("⚠️ Refresh errors:", data.errors.slice(0, 5))
+      }
 
       if (!res.ok) {
         if (!silent) {
@@ -568,7 +533,10 @@ export default function DashboardPage() {
       }
 
       if (!silent) {
-        showToast(data.message || `${data.inserted} koersen ververst!`, "success")
+        const msg = data.inserted === 0 && data.errors?.length
+          ? `0 koersen ververst. Eerste fout: ${data.errors[0]}`
+          : data.message || `${data.inserted} koersen ververst!`
+        showToast(msg, data.inserted === 0 ? "error" : "success")
       }
       await loadDashboard() // Reload data instead of full page refresh
 
@@ -820,7 +788,12 @@ export default function DashboardPage() {
 
       try {
         // Fetch historical snapshots from database
-        const res = await fetch(`/api/save-snapshot?portfolio_id=${portfolioId}&period=${selectedPeriod}`)
+        const snapParams = new URLSearchParams({ portfolio_id: portfolioId, period: selectedPeriod })
+        if (selectedPeriod === 'CUSTOM' && customStartDate && customEndDate) {
+          snapParams.set('start', customStartDate)
+          snapParams.set('end', customEndDate)
+        }
+        const res = await fetch(`/api/save-snapshot?${snapParams}`)
         if (res.ok) {
           const { snapshots } = await res.json()
 
@@ -847,15 +820,20 @@ export default function DashboardPage() {
             const firstSnapIso = snapshots[0]?.snapshot_date as string | undefined
 
             // Calculate the period start date (same logic as save-snapshot API)
-            const periodStart = new Date()
-            if      (selectedPeriod === '1W')  periodStart.setDate(periodStart.getDate() - 7)
-            else if (selectedPeriod === '1M')  periodStart.setMonth(periodStart.getMonth() - 1)
-            else if (selectedPeriod === '3M')  periodStart.setMonth(periodStart.getMonth() - 3)
-            else if (selectedPeriod === '6M')  periodStart.setMonth(periodStart.getMonth() - 6)
-            else if (selectedPeriod === '1Y')  periodStart.setFullYear(periodStart.getFullYear() - 1)
-            else if (selectedPeriod === 'YTD') { periodStart.setMonth(0); periodStart.setDate(1) }
-            else if (selectedPeriod === 'ALL') periodStart.setFullYear(2000)  // effectively "all time"
-            const periodStartIso = periodStart.toISOString().split('T')[0]
+            let periodStartIso: string
+            if (selectedPeriod === 'CUSTOM' && customStartDate) {
+              periodStartIso = customStartDate
+            } else {
+              const periodStart = new Date()
+              if      (selectedPeriod === '1W')  periodStart.setDate(periodStart.getDate() - 7)
+              else if (selectedPeriod === '1M')  periodStart.setMonth(periodStart.getMonth() - 1)
+              else if (selectedPeriod === '3M')  periodStart.setMonth(periodStart.getMonth() - 3)
+              else if (selectedPeriod === '6M')  periodStart.setMonth(periodStart.getMonth() - 6)
+              else if (selectedPeriod === '1Y')  periodStart.setFullYear(periodStart.getFullYear() - 1)
+              else if (selectedPeriod === 'YTD') { periodStart.setMonth(0); periodStart.setDate(1) }
+              else if (selectedPeriod === 'ALL') periodStart.setFullYear(2000)  // effectively "all time"
+              periodStartIso = periodStart.toISOString().split('T')[0]
+            }
 
             // Prepend transaction-based cost-basis points for dates that fall
             // within the selected period but BEFORE the first snapshot.
@@ -865,18 +843,36 @@ export default function DashboardPage() {
               for (const pt of txTimeline) {
                 if (pt.date >= periodStartIso && pt.date < firstSnapIso) {
                   preTxPoints.push({
+                    isoDate:  pt.date,
                     date:     new Date(pt.date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: '2-digit' }),
-                    value:    pt.cost,   // before price data: value = cost (0 P&L)
+                    value:    pt.cost,
                     invested: pt.cost,
-                    pnl:      0,         // no P&L data before snapshot tracking began
+                    pnl:      0,
                   })
                 }
               }
             }
 
-            const historicalData = [
+            // Replace flat pnl=0 pre-snapshot points with real Yahoo-reconstructed values.
+            if (portfolioHistory && portfolioHistory.length > 0 && firstSnapIso) {
+              const realPre: PerfPoint[] = portfolioHistory
+                .filter(h => h.date >= periodStartIso && h.date < firstSnapIso)
+                .map(h => ({
+                  isoDate:  h.date,
+                  date:     new Date(h.date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: '2-digit' }),
+                  value:    h.value,
+                  invested: h.cost,
+                  pnl:      h.pnl,
+                }))
+              if (realPre.length > 0) {
+                preTxPoints.splice(0, preTxPoints.length, ...realPre)
+              }
+            }
+
+            const historicalData: PerfPoint[] = [
               ...preTxPoints,
-              ...snapshotPoints.map(({ isoDate: _iso, ...rest }) => rest),
+              // Keep isoDate in snapshot points (don't strip it)
+              ...snapshotPoints.map(({ isoDate, ...rest }) => ({ ...rest, isoDate })),
             ]
 
             // Add today's live values if today not already in snapshots
@@ -884,10 +880,11 @@ export default function DashboardPage() {
             const hasToday = snapshots.some((s: any) => s.snapshot_date === today)
             if (!hasToday) {
               historicalData.push({
+                isoDate:  today,
                 date:     new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
                 value:    metrics.totalValue,
                 invested: metrics.totalCost,
-                pnl:      metrics.totalReturn,  // live total return (unrealized + realized + dividends)
+                pnl:      metrics.totalReturn,
               })
             }
 
@@ -908,7 +905,7 @@ export default function DashboardPage() {
     }
 
     loadPerformanceData()
-  }, [metrics.totalCost, metrics.totalValue, selectedPeriod, customStartDate, customEndDate, portfolioId, txTimeline])
+  }, [metrics.totalCost, metrics.totalValue, selectedPeriod, customStartDate, customEndDate, portfolioId, txTimeline, portfolioHistory])
 
   // Load cash positions when portfolio ID is available
   useEffect(() => {
@@ -932,62 +929,104 @@ export default function DashboardPage() {
     loadAllSnapshots()
   }, [portfolioId])
 
+  // Reconstruct full price history via Yahoo Finance and backfill portfolio_snapshots.
+  // This runs once per portfolio load and may take a few seconds on first load.
+  useEffect(() => {
+    if (!portfolioId) return
+    setHistoryLoading(true)
+    fetch(`/api/portfolio-history?portfolio_id=${portfolioId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.history && Array.isArray(data.history)) {
+          setPortfolioHistory(data.history)
+        }
+      })
+      .catch(err => console.error('[portfolio-history]', err))
+      .finally(() => setHistoryLoading(false))
+  }, [portfolioId])
+
+  // Fetch real benchmark data whenever benchmark type or period changes
+  useEffect(() => {
+    setBenchmarkLoading(true)
+    const params = new URLSearchParams({ benchmark: selectedBenchmark, period: benchmarkPeriod })
+    if (benchmarkPeriod === 'CUSTOM' && benchmarkCustomStart && benchmarkCustomEnd) {
+      params.set('from', benchmarkCustomStart)
+      params.set('to',   benchmarkCustomEnd)
+    }
+    fetch(`/api/benchmark-history?${params}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.history && Array.isArray(data.history)) {
+          setBenchmarkHistory(data.history)
+        }
+      })
+      .catch(err => console.error('[benchmark-history]', err))
+      .finally(() => setBenchmarkLoading(false))
+  }, [selectedBenchmark, benchmarkPeriod, benchmarkCustomStart, benchmarkCustomEnd])
+
   // Period-specific performance metrics
   const periodMetrics = useMemo(() => {
     if (performanceData.length < 2) {
-      return { change: 0, changePercent: 0 }
+      return { change: 0, changePercent: 0, pnlChange: 0, pnlChangePercent: 0 }
     }
 
-    const firstValue = performanceData[0].value
-    const lastValue = performanceData[performanceData.length - 1].value
-    const change = lastValue - firstValue
-    const changePercent = firstValue > 0 ? (change / firstValue) * 100 : 0
+    const first = performanceData[0]
+    const last  = performanceData[performanceData.length - 1]
 
-    return { change, changePercent }
+    const change        = last.value - first.value
+    const changePercent = first.value > 0 ? (change / first.value) * 100 : 0
+
+    // P&L change over the period (absolute and % of invested at start)
+    const pnlChange        = last.pnl - first.pnl
+    const pnlChangePercent = first.invested > 0 ? (pnlChange / first.invested) * 100 : 0
+
+    return { change, changePercent, pnlChange, pnlChangePercent }
   }, [performanceData])
 
-  // Benchmark data — portfolio line uses real snapshots (normalized to 100 at start),
-  // benchmark line uses period-scaled historical average return.
+  // Benchmark chart data — merges real portfolio performance with real benchmark prices.
+  // Both series start at 0% at the first date they share in the selected period.
   const benchmarkData = useMemo(() => {
-    if (performanceData.length < 2) return generateBenchmarkData(selectedPeriod, selectedBenchmark)
+    if (performanceData.length < 2) return []
+    if (!benchmarkHistory || benchmarkHistory.length < 2) return []
 
-    const firstValue = performanceData[0].value
-    if (firstValue === 0) return generateBenchmarkData(selectedPeriod, selectedBenchmark)
+    // ── Use isoDate for date comparisons ─────────────────────────────────────
+    // benchmarkHistory uses ISO dates; performanceData has isoDate field.
+    const benchLookup: Record<string, number> = {}
+    for (const b of benchmarkHistory) benchLookup[b.date] = b.value
+    const sortedBenchDates = benchmarkHistory.map(b => b.date).sort()
 
-    // Annualised average returns per index
-    const annualReturns: Record<BenchmarkType, number> = {
-      sp500: 0.10, nasdaq100: 0.13, aex: 0.08, msci_world: 0.09,
+    // Helper: find the benchmark value for the closest date on or before isoDate
+    function benchValueAt(iso: string): number | null {
+      for (let i = sortedBenchDates.length - 1; i >= 0; i--) {
+        if (sortedBenchDates[i] <= iso) return benchLookup[sortedBenchDates[i]] ?? null
+      }
+      return null
     }
 
-    // Scale to the period
-    const scaleFactor = (() => {
-      if (selectedPeriod === '1W')  return 7   / 365
-      if (selectedPeriod === '1M')  return 30  / 365
-      if (selectedPeriod === '3M')  return 91  / 365
-      if (selectedPeriod === '6M')  return 182 / 365
-      if (selectedPeriod === '1Y')  return 1
-      if (selectedPeriod === 'YTD') {
-        const daysSinceJan1 = (Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86_400_000
-        return daysSinceJan1 / 365
-      }
-      // ALL: approximate from number of data points (daily snapshots)
-      return Math.max(performanceData.length, 1) / 252
-    })()
+    // ── Build aligned series using ISO dates ──────────────────────────────────
+    // Only include portfolio points that have an isoDate (can be aligned to benchmark)
+    const aligned = performanceData
+      .filter(d => d.isoDate)
+      .map(d => ({
+        isoDate:       d.isoDate!,
+        displayDate:   d.date,
+        portfolioValue: d.value,
+        benchPercent:  benchValueAt(d.isoDate!),
+      }))
+      .filter(d => d.benchPercent !== null)
 
-    const totalBenchmarkReturn = annualReturns[selectedBenchmark] * scaleFactor
-    const n = performanceData.length
+    if (aligned.length < 2) return []
 
-    return performanceData.map((d, i) => {
-      const progress = i / Math.max(n - 1, 1)
-      return {
-        date:      d.date,
-        // Portfolio: actual relative return in %, e.g. +5.3 means +5.3%
-        portfolio: ((d.value / firstValue) - 1) * 100,
-        // Benchmark: simulated relative return in %
-        benchmark: totalBenchmarkReturn * progress * 100,
-      }
-    })
-  }, [performanceData, selectedBenchmark, selectedPeriod])
+    // ── Normalise portfolio to 0% at the first aligned point ─────────────────
+    const basePortfolio = aligned[0].portfolioValue
+
+    return aligned.map(d => ({
+      date:      d.displayDate,
+      isoDate:   d.isoDate,
+      portfolio: basePortfolio > 0 ? ((d.portfolioValue / basePortfolio) - 1) * 100 : 0,
+      benchmark: d.benchPercent!,
+    }))
+  }, [performanceData, benchmarkHistory])
 
   // Dividend metrics
   const dividendMetrics = useMemo(() => {
@@ -1027,7 +1066,7 @@ export default function DashboardPage() {
   return (
     <DashboardLayout>
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-4 sm:px-8 sm:py-5">
+      <div className="border-b border-slate-200 dark:border-[#1a2744] bg-white dark:bg-[#0b1120] px-4 py-4 sm:px-8 sm:py-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Portfolio</h1>
           <div className="flex flex-wrap gap-2">
@@ -1066,7 +1105,6 @@ export default function DashboardPage() {
               dailyPnL={metrics.totalDailyPnL}
               dailyPnLPct={metrics.totalDailyPnLPercent}
               ytdReturnPct={ytdReturnPct}
-              totalCapitalDeployed={metrics.totalCapitalDeployed}
             />
           </div>
           <div className="lg:col-span-1">
@@ -1093,12 +1131,12 @@ export default function DashboardPage() {
         {/* LAYER 2 — Performance chart (2/3) + Top posities (1/3) */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           {/* Performance chart */}
-          <div className="lg:col-span-2 rounded-2xl bg-white dark:bg-slate-800 p-5 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
+          <div className="lg:col-span-2 rounded-2xl bg-white dark:bg-[#0d1829] p-5 shadow-sm ring-1 ring-slate-900/5 dark:ring-[#1a2744]/80">
             {/* Header row: title + mode toggle */}
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Portfolio Prestaties</h2>
-                {periodMetrics.change !== 0 && (
+                {chartMode === "value" && periodMetrics.change !== 0 && (
                   <p className={`text-sm font-medium mt-0.5 ${
                     periodMetrics.change >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                   }`}>
@@ -1109,14 +1147,25 @@ export default function DashboardPage() {
                     </PrivacyText>
                   </p>
                 )}
+                {chartMode === "pnl" && (
+                  <p className={`text-sm font-medium mt-0.5 ${
+                    periodMetrics.pnlChange >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                  }`}>
+                    <PrivacyText>
+                      {periodMetrics.pnlChange >= 0 ? "+" : ""}{formatCurrency(periodMetrics.pnlChange)}
+                      {" "}({periodMetrics.pnlChangePercent >= 0 ? "+" : ""}{periodMetrics.pnlChangePercent.toFixed(2)}%)
+                      {" "}W/V deze periode
+                    </PrivacyText>
+                  </p>
+                )}
               </div>
               {/* Waarde / Winst-Verlies toggle */}
-              <div className="flex items-center gap-1 rounded-lg bg-slate-100 dark:bg-slate-700/60 p-1 shrink-0 self-start">
+              <div className="flex items-center gap-1 rounded-lg bg-slate-100 dark:bg-[#0b1120] border border-slate-200 dark:border-[#1a2744] p-1 shrink-0 self-start">
                 <button
                   onClick={() => setChartMode("value")}
                   className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                     chartMode === "value"
-                      ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm"
+                      ? "bg-lime-500 text-white shadow-sm"
                       : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                   }`}
                 >
@@ -1126,7 +1175,7 @@ export default function DashboardPage() {
                   onClick={() => setChartMode("pnl")}
                   className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                     chartMode === "pnl"
-                      ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm"
+                      ? "bg-lime-500 text-white shadow-sm"
                       : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                   }`}
                 >
@@ -1149,30 +1198,46 @@ export default function DashboardPage() {
               />
             </div>
 
-            <div className="h-64 sm:h-80">
+            <div className="relative h-64 sm:h-80">
               <PerformanceChart
                 data={performanceData}
                 mode={chartMode}
                 costBasis={chartMode === "value" ? metrics.totalCost : undefined}
               />
+              {historyLoading && (
+                <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/70 dark:bg-[#0d1829]/80 backdrop-blur-sm">
+                  <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-lime-500" />
+                    Historische data laden…
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Top posities */}
-          <div className="lg:col-span-1 rounded-2xl bg-white dark:bg-slate-800 p-5 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Top Posities</h2>
-              <span className="text-xs text-slate-400 dark:text-slate-500">
-                <PrivacyText>{positions.length} totaal</PrivacyText>
-              </span>
+          {/* Top posities + Verdeling */}
+          <div className="lg:col-span-1 flex flex-col gap-4">
+            <div className="rounded-2xl bg-white dark:bg-[#0d1829] p-5 shadow-sm ring-1 ring-slate-900/5 dark:ring-[#1a2744]/80">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Top Posities</h2>
+                <span className="text-xs text-slate-400 dark:text-slate-500">
+                  <PrivacyText>{positions.length} totaal</PrivacyText>
+                </span>
+              </div>
+              <TopPositionsChart positions={topPositions} />
             </div>
-            <TopPositionsChart positions={topPositions} />
+            <AllocationBreakdown positions={positions.map(p => ({
+              product:      p.product,
+              currentValue: p.currentValue,
+              isETF:        p.isETF,
+              sector:       p.sector,
+            }))} />
           </div>
         </div>
 
         {/* LAYER 3 — Posities tabellen */}
         {positions.length === 0 ? (
-          <div className="rounded-2xl bg-white dark:bg-slate-800 p-12 text-center shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
+          <div className="rounded-2xl bg-white dark:bg-[#0d1829] p-12 text-center shadow-sm ring-1 ring-slate-900/5 dark:ring-[#1a2744]/80">
             <BarChart2 className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600 mb-3" />
             <p className="font-medium text-slate-600 dark:text-slate-400">Geen posities gevonden</p>
             <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">
@@ -1213,16 +1278,25 @@ export default function DashboardPage() {
         {/* LAYER 4 — Secundaire analyse (inklapbaar op mobiel) */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {/* Benchmark */}
-          <div className="rounded-2xl bg-white dark:bg-slate-800 p-5 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Benchmark</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Vergelijk met marktindex</p>
+          <div className="rounded-2xl bg-white dark:bg-[#0d1829] p-5 shadow-sm ring-1 ring-slate-900/5 dark:ring-[#1a2744]/80">
+            <div className="mb-3 flex flex-col gap-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Benchmark</h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Vergelijk met marktindex</p>
+                </div>
+                <BenchmarkSelector selectedBenchmark={selectedBenchmark} onBenchmarkChange={setSelectedBenchmark} />
               </div>
-              <BenchmarkSelector selectedBenchmark={selectedBenchmark} onBenchmarkChange={setSelectedBenchmark} />
+              <PeriodFilter
+                selectedPeriod={benchmarkPeriod}
+                onPeriodChange={setBenchmarkPeriod}
+                customStartDate={benchmarkCustomStart}
+                customEndDate={benchmarkCustomEnd}
+                onCustomDateChange={(s, e) => { setBenchmarkCustomStart(s); setBenchmarkCustomEnd(e) }}
+              />
             </div>
             <div className="h-64">
-              <BenchmarkChart data={benchmarkData} benchmarkType={selectedBenchmark} />
+              <BenchmarkChart data={benchmarkData} benchmarkType={selectedBenchmark} loading={benchmarkLoading} />
             </div>
           </div>
 
@@ -1250,7 +1324,6 @@ export default function DashboardPage() {
                 </p>
               </div>
             )}
-            <AlertsPanel alerts={alerts} onCreateAlert={handleCreateAlert} onDeleteAlert={handleDeleteAlert} />
           </div>
         </div>
 

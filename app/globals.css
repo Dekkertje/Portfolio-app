@@ -3,8 +3,8 @@
 @variant dark (&:is(.dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f1f5f9;
+  --foreground: #0f172a;
 }
 
 @theme inline {
@@ -16,8 +16,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #080e18;
+    --foreground: #f1f5f9;
   }
 }
 
@@ -28,27 +28,15 @@ body {
 }
 
 @keyframes slide-in-right {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
 }
 
-.animate-slide-in-right {
-  animation: slide-in-right 0.3s ease-out;
-}
+.animate-slide-in-right { animation: slide-in-right 0.3s ease-out; }
 
-/* Privacy mode blur */
 .privacy-blur {
   filter: blur(6px);
   user-select: none;
   transition: filter 0.2s ease;
 }
-
-.privacy-blur:hover {
-  filter: blur(0px);
-}
+.privacy-blur:hover { filter: blur(0px); }

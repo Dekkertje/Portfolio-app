@@ -42,6 +42,7 @@ export function PeriodFilter({
 
   const handleApplyCustom = () => {
     if (startDate && endDate && onCustomDateChange) {
+      onPeriodChange('CUSTOM')
       onCustomDateChange(startDate, endDate)
       setShowCustom(false)
     }
@@ -49,7 +50,7 @@ export function PeriodFilter({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="inline-flex rounded-lg bg-slate-100 p-1">
+      <div className="inline-flex rounded-lg bg-slate-100 dark:bg-[#0b1120] border border-slate-200 dark:border-[#1a2744] p-1">
         {PERIODS.map((period) => (
           <button
             key={period.value}
@@ -58,8 +59,8 @@ export function PeriodFilter({
               rounded-md px-3 py-1.5 text-sm font-medium transition-all
               ${
                 selectedPeriod === period.value
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-lime-500 text-white shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }
             `}
           >
@@ -72,8 +73,8 @@ export function PeriodFilter({
             rounded-md px-3 py-1.5 text-sm font-medium transition-all flex items-center gap-1
             ${
               selectedPeriod === 'CUSTOM'
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-lime-500 text-white shadow-sm'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }
           `}
         >
@@ -83,24 +84,24 @@ export function PeriodFilter({
       </div>
 
       {showCustom && (
-        <div className="rounded-lg bg-white p-4 shadow-lg ring-1 ring-slate-200 flex flex-col gap-3">
+        <div className="rounded-lg bg-white dark:bg-[#0d1829] p-4 shadow-lg ring-1 ring-slate-200 dark:ring-[#1a2744] flex flex-col gap-3">
           <div className="flex gap-3 items-center">
             <div className="flex-1">
-              <label className="block text-xs font-medium text-slate-600 mb-1">Van</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Van</label>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-slate-300 dark:border-[#1a2744] bg-white dark:bg-[#0b1120] text-slate-900 dark:text-slate-100 px-3 py-2 text-sm focus:border-lime-500 focus:outline-none focus:ring-1 focus:ring-lime-500"
               />
             </div>
             <div className="flex-1">
-              <label className="block text-xs font-medium text-slate-600 mb-1">Tot</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Tot</label>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-slate-300 dark:border-[#1a2744] bg-white dark:bg-[#0b1120] text-slate-900 dark:text-slate-100 px-3 py-2 text-sm focus:border-lime-500 focus:outline-none focus:ring-1 focus:ring-lime-500"
               />
             </div>
           </div>
@@ -108,13 +109,13 @@ export function PeriodFilter({
             <button
               onClick={handleApplyCustom}
               disabled={!startDate || !endDate}
-              className="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 rounded-md bg-lime-500 px-4 py-2 text-sm font-medium text-white hover:bg-lime-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               Toepassen
             </button>
             <button
               onClick={() => setShowCustom(false)}
-              className="flex-1 rounded-md bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 transition-colors"
+              className="flex-1 rounded-md bg-slate-100 dark:bg-[#1a2744] px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#243560] transition-colors"
             >
               Annuleren
             </button>

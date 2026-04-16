@@ -13,12 +13,13 @@ type Position = {
   realizedPnL: number
   isETF: boolean
   dayChangeValue?: number
+  dayChangePercent?: number
   totalDividendsReceived?: number
   nextEarningsDate?: string
   annualDividend?: number
   dividendYield?: number
-  isManual?: boolean  // Flag to identify manual positions
-  manualPositionId?: string  // ID for manual positions
+  isManual?: boolean
+  manualPositionId?: string
 }
 
 type PositionsTableProps = {
@@ -122,13 +123,13 @@ export function PositionsTable({ positions, onDeletePosition }: PositionsTablePr
   }
 
   return (
-    <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-900/5">
+    <div className="overflow-hidden rounded-xl bg-white dark:bg-[#0d1829] shadow-sm ring-1 ring-slate-900/5 dark:ring-[#1a2744]/80">
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200">
-          <thead className="bg-slate-50">
+        <table className="min-w-full divide-y divide-slate-200 dark:divide-[#1a2744]">
+          <thead className="bg-slate-50 dark:bg-[#0b1120]">
             <tr>
               <th
-                className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-100 transition-colors"
+                className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 cursor-pointer hover:bg-slate-100 dark:hover:bg-[#1a2744]/40 transition-colors"
                 onClick={() => handleSort('product')}
               >
                 <div className="flex items-center gap-2">
@@ -137,7 +138,7 @@ export function PositionsTable({ positions, onDeletePosition }: PositionsTablePr
                 </div>
               </th>
               <th
-                className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-100 transition-colors"
+                className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 cursor-pointer hover:bg-slate-100 dark:hover:bg-[#1a2744]/40 transition-colors"
                 onClick={() => handleSort('quantity')}
               >
                 <div className="flex items-center justify-end gap-2">
@@ -146,7 +147,7 @@ export function PositionsTable({ positions, onDeletePosition }: PositionsTablePr
                 </div>
               </th>
               <th
-                className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-100 transition-colors"
+                className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 cursor-pointer hover:bg-slate-100 dark:hover:bg-[#1a2744]/40 transition-colors"
                 onClick={() => handleSort('avgPrice')}
               >
                 <div className="flex items-center justify-end gap-2">
@@ -155,7 +156,7 @@ export function PositionsTable({ positions, onDeletePosition }: PositionsTablePr
                 </div>
               </th>
               <th
-                className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-100 transition-colors"
+                className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 cursor-pointer hover:bg-slate-100 dark:hover:bg-[#1a2744]/40 transition-colors"
                 onClick={() => handleSort('currentPrice')}
               >
                 <div className="flex items-center justify-end gap-2">
@@ -164,7 +165,7 @@ export function PositionsTable({ positions, onDeletePosition }: PositionsTablePr
                 </div>
               </th>
               <th
-                className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-100 transition-colors"
+                className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 cursor-pointer hover:bg-slate-100 dark:hover:bg-[#1a2744]/40 transition-colors"
                 onClick={() => handleSort('currentValue')}
               >
                 <div className="flex items-center justify-end gap-2">
@@ -172,24 +173,17 @@ export function PositionsTable({ positions, onDeletePosition }: PositionsTablePr
                   <SortIcon field="currentValue" />
                 </div>
               </th>
+              <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Dag
+              </th>
               <th
-                className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600 cursor-pointer hover:bg-slate-100 transition-colors"
+                className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 cursor-pointer hover:bg-slate-100 dark:hover:bg-[#1a2744]/40 transition-colors"
                 onClick={() => handleSort('pnl')}
               >
                 <div className="flex items-center justify-end gap-2">
                   Winst/Verlies
                   <SortIcon field="pnl" />
                 </div>
-              </th>
-              <th
-                className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600"
-              >
-                Dividenden
-              </th>
-              <th
-                className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600"
-              >
-                Earnings
               </th>
               {onDeletePosition && (
                 <th className="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-600">
@@ -198,7 +192,7 @@ export function PositionsTable({ positions, onDeletePosition }: PositionsTablePr
               )}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200 bg-white">
+          <tbody className="divide-y divide-slate-200 dark:divide-[#1a2744] bg-white dark:bg-[#0d1829]">
             {sortedPositions.map((position, index) => {
               // Unrealized P&L for current open position
               const unrealizedPnL = position.currentValue - position.invested
@@ -212,10 +206,10 @@ export function PositionsTable({ positions, onDeletePosition }: PositionsTablePr
               const isProfit = totalPnL >= 0
 
               return (
-                <tr key={index} className="transition-colors hover:bg-slate-50">
+                <tr key={index} className="transition-colors hover:bg-slate-50 dark:hover:bg-[#1a2744]/30">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <div className="text-sm font-medium text-slate-900">{position.product}</div>
+                      <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{position.product}</div>
                       {position.isETF && (
                         <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
                           ETF
@@ -223,20 +217,36 @@ export function PositionsTable({ positions, onDeletePosition }: PositionsTablePr
                       )}
                     </div>
                     {position.isin && (
-                      <div className="text-xs text-slate-500">{position.isin}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{position.isin}</div>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-right text-sm text-slate-900">
+                  <td className="px-6 py-4 text-right text-sm text-slate-900 dark:text-slate-100">
                     {formatNumber(position.quantity)}
                   </td>
-                  <td className="px-6 py-4 text-right text-sm text-slate-900">
+                  <td className="px-6 py-4 text-right text-sm text-slate-900 dark:text-slate-100">
                     {formatCurrency(position.avgPrice)}
                   </td>
-                  <td className="px-6 py-4 text-right text-sm font-medium text-slate-900">
+                  <td className="px-6 py-4 text-right text-sm font-medium text-slate-900 dark:text-slate-100">
                     {formatCurrency(position.currentPrice)}
                   </td>
-                  <td className="px-6 py-4 text-right text-sm font-semibold text-slate-900">
+                  <td className="px-6 py-4 text-right text-sm font-semibold text-slate-900 dark:text-slate-100">
                     {formatCurrency(position.currentValue)}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    {position.dayChangeValue !== undefined ? (
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className={`text-sm font-medium ${position.dayChangeValue >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          {position.dayChangeValue >= 0 ? "+" : ""}{formatCurrency(position.dayChangeValue)}
+                        </span>
+                        {position.dayChangePercent !== undefined && (
+                          <span className={`text-xs ${position.dayChangePercent >= 0 ? "text-green-600" : "text-red-600"}`}>
+                            {position.dayChangePercent >= 0 ? "+" : ""}{position.dayChangePercent.toFixed(2)}%
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-300">-</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex flex-col items-end gap-1">
@@ -268,41 +278,6 @@ export function PositionsTable({ positions, onDeletePosition }: PositionsTablePr
                         )}
                       </div>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex flex-col items-end gap-1">
-                      {position.totalDividendsReceived && position.totalDividendsReceived > 0 ? (
-                        <>
-                          <div className="text-sm font-medium text-green-600">
-                            {formatCurrency(position.totalDividendsReceived)}
-                          </div>
-                          {position.dividendYield && position.dividendYield > 0 && (
-                            <div className="text-xs text-slate-500">
-                              Yield: {position.dividendYield.toFixed(2)}%
-                            </div>
-                          )}
-                        </>
-                      ) : position.annualDividend && position.annualDividend > 0 ? (
-                        <div className="text-xs text-slate-400">
-                          €{position.annualDividend.toFixed(2)}/jr
-                        </div>
-                      ) : (
-                        <div className="text-xs text-slate-300">-</div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    {position.nextEarningsDate ? (
-                      <div className="text-xs text-slate-600">
-                        {new Date(position.nextEarningsDate).toLocaleDateString('nl-NL', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric'
-                        })}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-slate-300">-</div>
-                    )}
                   </td>
                   {onDeletePosition && (
                     <td className="px-6 py-4 text-center">

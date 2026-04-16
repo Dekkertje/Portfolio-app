@@ -24,50 +24,34 @@ export default function TransactionsPage() {
   useEffect(() => {
     async function loadTransactions() {
       const { data: userData } = await supabase.auth.getUser()
-
-      if (!userData.user) {
-        window.location.href = "/login"
-        return
-      }
+      if (!userData.user) { window.location.href = "/login"; return }
 
       const { data: portfolio } = await supabase
-        .from("portfolios")
-        .select("id")
-        .eq("user_id", userData.user.id)
-        .single()
-
-      if (!portfolio) {
-        setLoading(false)
-        return
-      }
+        .from("portfolios").select("id").eq("user_id", userData.user.id).single()
+      if (!portfolio) { setLoading(false); return }
 
       const { data, error } = await supabase
-        .from("transactions")
-        .select("*")
+        .from("transactions").select("*")
         .eq("portfolio_id", portfolio.id)
         .order("trade_date", { ascending: false })
 
-      if (!error && data) {
-        setTransactions(data)
-      }
-
+      if (!error && data) setTransactions(data)
       setLoading(false)
     }
-
     loadTransactions()
   }, [])
 
   return (
     <DashboardLayout>
       {/* Header */}
-      <div className="border-b border-slate-200 bg-white px-8 py-6">
+      <div className="border-b border-slate-200 dark:border-[#1a2744] bg-white dark:bg-[#0b1120] px-8 py-6">
         <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-indigo-100 p-2">
-            <Receipt className="h-6 w-6 text-indigo-600" />
+          <div className="rounded-lg bg-lime-500/10 border border-lime-500/20 p-2">
+            <Receipt className="h-6 w-6 text-lime-500" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Transacties</h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Transacties</h1>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Overzicht van alle koop- en verkooptransacties
             </p>
           </div>
@@ -79,60 +63,55 @@ export default function TransactionsPage() {
         {loading ? (
           <div className="flex h-64 items-center justify-center">
             <div className="text-center">
-              <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600"></div>
-              <p className="text-slate-600">Gegevens laden...</p>
+              <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-[#1a2744] border-t-lime-500" />
+              <p className="text-slate-500 dark:text-slate-400">Gegevens laden…</p>
             </div>
           </div>
         ) : transactions.length === 0 ? (
-          <div className="rounded-xl bg-white p-12 text-center shadow-sm ring-1 ring-slate-900/5">
-            <p className="text-slate-500">Geen transacties gevonden</p>
-            <p className="mt-2 text-sm text-slate-400">
-              Importeer transacties om ze hier te zien
-            </p>
+          <div className="rounded-xl bg-white dark:bg-[#0d1829] p-12 text-center shadow-sm ring-1 ring-slate-900/5 dark:ring-[#1a2744]/80">
+            <p className="text-slate-500 dark:text-slate-400">Geen transacties gevonden</p>
+            <p className="mt-2 text-sm text-slate-400 dark:text-slate-500">Importeer transacties om ze hier te zien</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {transactions.map((tx) => {
-              const isBuy = tx.transaction_type?.toLowerCase().includes("koop") || tx.quantity > 0
+              const isBuy = tx.transaction_type === "buy" || tx.quantity > 0
 
               return (
                 <div
                   key={tx.id}
-                  className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-900/5 transition hover:shadow-md"
+                  className="rounded-xl bg-white dark:bg-[#0d1829] px-5 py-4 shadow-sm ring-1 ring-slate-900/5 dark:ring-[#1a2744]/80 transition hover:ring-slate-200 dark:hover:ring-[#1a2744]"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className={`rounded-lg p-2 ${isBuy ? "bg-green-100" : "bg-red-100"}`}>
-                        {isBuy ? (
-                          <TrendingUp className="h-5 w-5 text-green-600" />
-                        ) : (
-                          <TrendingDown className="h-5 w-5 text-red-600" />
-                        )}
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`shrink-0 rounded-lg p-2 ${
+                        isBuy
+                          ? "bg-emerald-500/10 border border-emerald-500/20"
+                          : "bg-red-500/10 border border-red-500/20"
+                      }`}>
+                        {isBuy
+                          ? <TrendingUp  className="h-4 w-4 text-emerald-500" />
+                          : <TrendingDown className="h-4 w-4 text-red-500" />
+                        }
                       </div>
-                      <div>
-                        <p className="font-semibold text-slate-900">{tx.product}</p>
-                        <p className="text-sm text-slate-500">
-                          {tx.trade_date} {tx.trade_time && `· ${tx.trade_time}`}
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-900 dark:text-slate-100 truncate">{tx.product}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {tx.trade_date}{tx.trade_time ? ` · ${tx.trade_time}` : ""}
+                          {tx.isin && <span className="ml-2 text-slate-400 dark:text-slate-500">{tx.isin}</span>}
                         </p>
                       </div>
                     </div>
 
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-slate-700">
-                        {Math.abs(tx.quantity)} stuks @ €{tx.price.toFixed(2)}
+                    <div className="text-right shrink-0">
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        {Math.abs(tx.quantity)} × €{tx.price.toFixed(2)}
                       </p>
-                      <p className={`text-lg font-bold ${isBuy ? "text-green-600" : "text-red-600"}`}>
-                        {isBuy ? "+" : ""}€{tx.total_eur.toFixed(2)}
+                      <p className={`text-base font-bold ${isBuy ? "text-emerald-500" : "text-red-500"}`}>
+                        {isBuy ? "+" : "−"}€{Math.abs(tx.total_eur).toFixed(2)}
                       </p>
                     </div>
                   </div>
-
-                  {tx.isin && (
-                    <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2">
-                      <span className="text-xs font-medium text-slate-500">ISIN:</span>{" "}
-                      <span className="text-xs text-slate-700">{tx.isin}</span>
-                    </div>
-                  )}
                 </div>
               )
             })}

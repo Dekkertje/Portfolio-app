@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { createServerSupabaseClient, createServiceSupabaseClient } from "@/lib/supabase/server"
 import { matchPosition }              from "@/lib/matching/engine"
 import { getQuote, getDividendInfo, normalisePencePrice } from "@/lib/providers/yahoo"
 import { getFXRate }                  from "@/lib/providers/fx"
@@ -10,7 +10,9 @@ import { getFXRate }                  from "@/lib/providers/fx"
 // caches today's USD/EUR rate in fx_rates.
 
 export async function POST() {
-  const supabase = await createServerSupabaseClient()
+  // Use service-role client so API routes can write to prices/securities/fx_rates
+  // without being blocked by RLS (these tables have no authenticated INSERT policy).
+  const supabase = createServiceSupabaseClient()
 
   // ── Collect unique products ─────────────────────────────────────────────────
   const [{ data: transactions }, { data: manualPositions }] = await Promise.all([
@@ -64,7 +66,7 @@ export async function POST() {
     success: true,
     inserted,
     skipped,
-    errors,
+    errors: errors.slice(0, 10), // cap to avoid oversized responses
     dividendStats,
     message: `${inserted} prijzen opgehaald, ${skipped} overgeslagen, ${dividendStats.length} dividenden gevonden`,
   })
@@ -110,21 +112,9 @@ async function processItem(
   const isUsd = quote.currency === "USD"
   const rate  = isUsd ? usdToEur : 1
 
-  let price         = normalisePencePrice(quote.price,         quote.currency) * rate
-  let previousClose = normalisePencePrice(quote.previousClose, quote.currency) * rate
-
-  // Prefer our own DB history as previous close (more stable across FX movements)
-  const { data: lastStored } = await supabase
-    .from("prices")
-    .select("price, price_date")
-    .eq("product", item.product)
-    .lt("price_date", quote.priceDate)
-    .order("price_date", { ascending: false })
-    .limit(1)
-
-  if (lastStored && lastStored.length > 0) {
-    previousClose = Number(lastStored[0].price)
-  }
+  const price         = normalisePencePrice(quote.price,     quote.currency) * rate
+  // Use today's opening price — "dag winst/verlies" = current price vs market open
+  const previousClose = normalisePencePrice(quote.openPrice, quote.currency) * rate
 
   // ── Persist price ─────────────────────────────────────────────────────────
   // Delete-then-insert to avoid unique constraint conflicts on same-day refresh

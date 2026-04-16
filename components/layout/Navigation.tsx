@@ -80,25 +80,25 @@ export function Navigation() {
   }
 
   return (
-    <div className={`flex h-screen flex-col bg-slate-900 dark:bg-slate-950 border-r border-slate-800 dark:border-slate-900 transition-all duration-300 ${
+    <div className={`flex h-screen flex-col bg-[#0b1120] border-r border-[#1a2744] transition-all duration-300 ${
       isCollapsed ? "w-20" : "w-64"
     }`}>
       {/* Logo Section - More Prominent */}
-      <div className="border-b border-slate-800 dark:border-slate-700">
+      <div className="border-b border-[#1a2744]">
         {isCollapsed ? (
           <div className="flex h-20 items-center justify-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-lime-500 to-cyan-500 shadow-lg shadow-lime-500/20">
               <TrendingUp className="h-7 w-7 text-white" />
             </div>
           </div>
         ) : (
-          <div className="px-6 py-6">
+          <div className="px-5 py-5">
             <Image
               src="/images/dekkertracker-logo.png"
               alt="DekkerTracker"
-              width={240}
-              height={60}
-              className="h-auto w-full max-w-[220px]"
+              width={280}
+              height={80}
+              className="h-auto w-full max-w-[260px]"
               priority
             />
           </div>
@@ -107,9 +107,9 @@ export function Navigation() {
 
       {/* Profile Avatar */}
       {!isCollapsed && (
-        <div className="px-6 py-4 border-b border-slate-800 dark:border-slate-700">
+        <div className="px-6 py-4 border-b border-[#1a2744]">
           <Link href="/settings" className="flex items-center gap-3 group">
-            <div className="relative w-12 h-12 rounded-full overflow-hidden bg-slate-700 group-hover:ring-2 group-hover:ring-indigo-500 transition-all flex-shrink-0">
+            <div className="relative w-12 h-12 rounded-full overflow-hidden bg-[#1a2744] group-hover:ring-2 group-hover:ring-lime-500 transition-all flex-shrink-0">
               {avatarUrl ? (
                 <Image
                   src={avatarUrl}
@@ -132,8 +132,8 @@ export function Navigation() {
         </div>
       )}
       {isCollapsed && (
-        <div className="px-3 py-4 border-b border-slate-800 dark:border-slate-700 flex justify-center">
-          <Link href="/settings" className="relative w-10 h-10 rounded-full overflow-hidden bg-slate-700 hover:ring-2 hover:ring-indigo-500 transition-all">
+        <div className="px-3 py-4 border-b border-[#1a2744] flex justify-center">
+          <Link href="/settings" className="relative w-10 h-10 rounded-full overflow-hidden bg-[#1a2744] hover:ring-2 hover:ring-lime-500 transition-all">
             {avatarUrl ? (
               <Image
                 src={avatarUrl}
@@ -167,8 +167,8 @@ export function Navigation() {
                 ${isCollapsed ? "justify-center" : ""}
                 ${
                   isActive
-                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/50"
-                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                    ? "bg-lime-500/15 text-lime-400 border border-lime-500/30"
+                    : "text-slate-400 hover:bg-white/5 hover:text-white"
                 }
               `}
             >
@@ -180,11 +180,11 @@ export function Navigation() {
       </nav>
 
       {/* Theme Toggle, Privacy Mode & Logout */}
-      <div className="border-t border-slate-800 dark:border-slate-700 p-4 space-y-2">
+      <div className="border-t border-[#1a2744] p-4 space-y-2">
         <button
           onClick={toggleTheme}
           title={isCollapsed ? (theme === "light" ? "Dark Mode" : "Light Mode") : undefined}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 dark:text-slate-400 transition-all hover:bg-slate-800 dark:hover:bg-slate-900 hover:text-white ${
+          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 transition-all hover:bg-white/5 hover:text-white ${
             isCollapsed ? "justify-center" : ""
           }`}
         >
@@ -203,7 +203,7 @@ export function Navigation() {
         <button
           onClick={togglePrivacyMode}
           title={isCollapsed ? (privacyMode ? "Privacy Uit" : "Privacy Aan") : undefined}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 dark:text-slate-400 transition-all hover:bg-slate-800 dark:hover:bg-slate-900 hover:text-white ${
+          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 transition-all hover:bg-white/5 hover:text-white ${
             isCollapsed ? "justify-center" : ""
           }`}
         >
@@ -222,7 +222,7 @@ export function Navigation() {
         <button
           onClick={toggleSidebar}
           title={isCollapsed ? "Uitklappen" : "Inklappen"}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 dark:text-slate-400 transition-all hover:bg-slate-800 dark:hover:bg-slate-900 hover:text-white ${
+          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 transition-all hover:bg-white/5 hover:text-white ${
             isCollapsed ? "justify-center" : ""
           }`}
         >
@@ -240,7 +240,7 @@ export function Navigation() {
         <button
           onClick={handleLogout}
           title={isCollapsed ? "Uitloggen" : undefined}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 dark:text-slate-400 transition-all hover:bg-red-600/10 hover:text-red-400 ${
+          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 transition-all hover:bg-red-600/10 hover:text-red-400 ${
             isCollapsed ? "justify-center" : ""
           }`}
         >

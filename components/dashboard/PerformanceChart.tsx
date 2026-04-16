@@ -15,7 +15,8 @@ import { useTheme } from "@/contexts/ThemeContext"
 export type ChartMode = "value" | "pnl"
 
 export type PerformanceData = {
-  date: string
+  date: string        // display label, e.g. "16 apr"
+  isoDate?: string    // machine-readable date for alignment, e.g. "2025-04-16"
   value: number
   invested: number
   /** Total return (unrealized + realized + dividends) for the P&L view.
@@ -37,6 +38,17 @@ const sign = (v: number) => (v > 0 ? "+" : "")
 
 // ─── Value-mode tooltip ───────────────────────────────────────────────────────
 
+function fmtLabel(label: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(label)) {
+    const d = new Date(label)
+    const day   = d.getDate()
+    const month = d.toLocaleString("nl-NL", { month: "short" })
+    const year  = d.getFullYear()
+    return `${day} ${month} ${year}`
+  }
+  return label
+}
+
 function ValueTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
 
@@ -48,7 +60,7 @@ function ValueTooltip({ active, payload, label }: any) {
 
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-lg text-sm">
-      <p className="font-semibold text-slate-700 dark:text-slate-300 mb-2">{label}</p>
+      <p className="font-semibold text-slate-700 dark:text-slate-300 mb-2">{fmtLabel(label)}</p>
       <div className="space-y-1">
         <div className="flex justify-between gap-6">
           <span className="text-slate-500 dark:text-slate-400">Waarde</span>
@@ -90,7 +102,7 @@ function PnLTooltip({ active, payload, label }: any) {
 
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-lg text-sm">
-      <p className="font-semibold text-slate-700 dark:text-slate-300 mb-2">{label}</p>
+      <p className="font-semibold text-slate-700 dark:text-slate-300 mb-2">{fmtLabel(label)}</p>
       <div className="space-y-1">
         <div className={`flex justify-between gap-6 font-semibold ${
           pnl >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
@@ -119,6 +131,44 @@ function PnLTooltip({ active, payload, label }: any) {
   )
 }
 
+// ─── X-axis tick helpers ──────────────────────────────────────────────────────
+
+/** Determines whether to include the year in a tick label based on the data range. */
+function buildTickFormatter(data: PerformanceData[]) {
+  const isoDates = data.map(d => d.isoDate).filter(Boolean) as string[]
+  if (isoDates.length < 2) return (v: string) => v
+
+  const first = new Date(isoDates[0])
+  const last  = new Date(isoDates[isoDates.length - 1])
+  const spanDays = (last.getTime() - first.getTime()) / 86_400_000
+  const multiYear = last.getFullYear() !== first.getFullYear()
+
+  return (v: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return v  // fallback for display-format strings
+    const d = new Date(v)
+    const month = d.toLocaleString("nl-NL", { month: "short" })
+    if (spanDays > 365 || multiYear) {
+      // For long ranges: show "jan '25" style, or just the year at January
+      if (d.getMonth() === 0) return `jan '${String(d.getFullYear()).slice(2)}`
+      return `${month} '${String(d.getFullYear()).slice(2)}`
+    }
+    // For shorter ranges: "16 apr"
+    return `${d.getDate()} ${month}`
+  }
+}
+
+/** Select ~6 evenly-spaced ticks from isoDate values, always including first + last. */
+function selectTicks(data: PerformanceData[], n = 6): string[] {
+  const iso = data.map(d => d.isoDate).filter(Boolean) as string[]
+  if (iso.length <= n) return iso
+  const result: string[] = []
+  const step = (iso.length - 1) / (n - 1)
+  for (let i = 0; i < n; i++) {
+    result.push(iso[Math.round(i * step)])
+  }
+  return [...new Set(result)]
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function PerformanceChart({ data, mode = "value", costBasis }: PerformanceChartProps) {
@@ -133,9 +183,11 @@ export function PerformanceChart({ data, mode = "value", costBasis }: Performanc
     )
   }
 
-  const gridColor = isDark ? "#334155" : "#e2e8f0"
-  const axisColor = isDark ? "#94a3b8" : "#64748b"
-  const lastPoint = data[data.length - 1]
+  const gridColor    = isDark ? "#334155" : "#e2e8f0"
+  const axisColor    = isDark ? "#94a3b8" : "#64748b"
+  const lastPoint    = data[data.length - 1]
+  const tickFormatter = buildTickFormatter(data)
+  const xTicks        = selectTicks(data)
 
   // ── P&L mode ─────────────────────────────────────────────────────────────────
   if (mode === "pnl") {
@@ -168,7 +220,9 @@ export function PerformanceChart({ data, mode = "value", costBasis }: Performanc
             <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
 
             <XAxis
-              dataKey="date"
+              dataKey="isoDate"
+              ticks={xTicks}
+              tickFormatter={tickFormatter}
               stroke={axisColor}
               fontSize={11}
               tickLine={false}
@@ -250,7 +304,9 @@ export function PerformanceChart({ data, mode = "value", costBasis }: Performanc
           <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
 
           <XAxis
-            dataKey="date"
+            dataKey="isoDate"
+            ticks={xTicks}
+            tickFormatter={tickFormatter}
             stroke={axisColor}
             fontSize={11}
             tickLine={false}

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { createServerSupabaseClient, createServiceSupabaseClient } from "@/lib/supabase/server"
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = createServiceSupabaseClient()
     const body = await request.json()
     const { portfolio_id, total_value, total_cost, total_return, total_return_pct, position_count } = body
 
@@ -63,10 +63,12 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = createServiceSupabaseClient()
     const { searchParams } = new URL(request.url)
     const portfolio_id = searchParams.get("portfolio_id")
     const period = searchParams.get("period") || "1M"
+    const customStart = searchParams.get("start")
+    const customEnd   = searchParams.get("end")
 
     if (!portfolio_id) {
       return NextResponse.json({ error: "Portfolio ID required" }, { status: 400 })
@@ -76,30 +78,37 @@ export async function GET(request: Request) {
     const endDate = new Date()
     const startDate = new Date()
 
-    switch (period) {
-      case '1W':
-        startDate.setDate(endDate.getDate() - 7)
-        break
-      case '1M':
-        startDate.setMonth(endDate.getMonth() - 1)
-        break
-      case '3M':
-        startDate.setMonth(endDate.getMonth() - 3)
-        break
-      case '6M':
-        startDate.setMonth(endDate.getMonth() - 6)
-        break
-      case '1Y':
-        startDate.setFullYear(endDate.getFullYear() - 1)
-        break
-      case 'YTD':
-        startDate.setMonth(0, 1) // January 1st
-        break
-      case 'ALL':
-        startDate.setFullYear(endDate.getFullYear() - 5) // 5 years back
-        break
-      default:
-        startDate.setMonth(endDate.getMonth() - 1)
+    if (period === 'CUSTOM' && customStart && customEnd) {
+      const parsedStart = new Date(customStart)
+      const parsedEnd   = new Date(customEnd)
+      if (!isNaN(parsedStart.getTime())) startDate.setTime(parsedStart.getTime())
+      if (!isNaN(parsedEnd.getTime()))   endDate.setTime(parsedEnd.getTime())
+    } else {
+      switch (period) {
+        case '1W':
+          startDate.setDate(endDate.getDate() - 7)
+          break
+        case '1M':
+          startDate.setMonth(endDate.getMonth() - 1)
+          break
+        case '3M':
+          startDate.setMonth(endDate.getMonth() - 3)
+          break
+        case '6M':
+          startDate.setMonth(endDate.getMonth() - 6)
+          break
+        case '1Y':
+          startDate.setFullYear(endDate.getFullYear() - 1)
+          break
+        case 'YTD':
+          startDate.setMonth(0, 1) // January 1st
+          break
+        case 'ALL':
+          startDate.setFullYear(endDate.getFullYear() - 5) // 5 years back
+          break
+        default:
+          startDate.setMonth(endDate.getMonth() - 1)
+      }
     }
 
     const { data, error } = await supabase

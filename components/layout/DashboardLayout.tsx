@@ -11,7 +11,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { isCollapsed } = useSidebar()
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-900">
+    <div className="flex h-screen overflow-hidden bg-slate-100 dark:bg-[#080e18]">
       {/* Sidebar */}
       <aside className={`flex-shrink-0 transition-all duration-300 ${
         isCollapsed ? "w-20" : "w-64"
