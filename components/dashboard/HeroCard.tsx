@@ -1,6 +1,6 @@
 "use client"
 
-import { TrendingUp, TrendingDown, Minus, Target, Pencil, Check, X } from "lucide-react"
+import { TrendingUp, TrendingDown, Minus, Target, Pencil, Check, X, Info } from "lucide-react"
 import { PrivacyText } from "@/components/ui/PrivacyText"
 import { useState, useEffect } from "react"
 
@@ -130,15 +130,29 @@ export function HeroCard({
         </div>
 
         {/* Return badge */}
-        <div className={`flex items-center gap-1.5 rounded-xl px-3 py-2 border ${
-          isPositive
-            ? "border-lime-500/30 bg-lime-500/10"
-            : "border-red-500/30 bg-red-500/10"
-        }`}>
-          <TrendIcon className={`h-4 w-4 shrink-0 ${isPositive ? "text-lime-500" : "text-red-500"}`} />
-          <span className={`text-xl font-bold ${isPositive ? "text-lime-500" : "text-red-500"}`}>
-            <PrivacyText>{fmtPct(totalReturnPct)}</PrivacyText>
-          </span>
+        <div className="relative group">
+          <div className={`flex items-center gap-1.5 rounded-xl px-3 py-2 border cursor-default ${
+            isPositive
+              ? "border-lime-500/30 bg-lime-500/10"
+              : "border-red-500/30 bg-red-500/10"
+          }`}>
+            <TrendIcon className={`h-4 w-4 shrink-0 ${isPositive ? "text-lime-500" : "text-red-500"}`} />
+            <span className={`text-xl font-bold ${isPositive ? "text-lime-500" : "text-red-500"}`}>
+              <PrivacyText>{fmtPct(totalReturnPct)}</PrivacyText>
+            </span>
+            <Info className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
+          </div>
+
+          {/* Tooltip */}
+          <div className="pointer-events-none absolute right-0 top-full mt-2 z-20 w-64 rounded-xl border border-slate-200 dark:border-[#1a2744] bg-white dark:bg-[#0d1829] px-4 py-3 shadow-xl text-xs text-slate-600 dark:text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+            <p className="font-semibold text-slate-800 dark:text-slate-200 mb-1.5">Totale all-time return</p>
+            <p className="leading-relaxed">
+              Berekend als je totale netto rendement (ongerealiseerd + gerealiseerd + dividend) gedeeld door het totaal ingelegd kapitaal — inclusief posities die je al verkocht hebt.
+            </p>
+            <div className="mt-2 pt-2 border-t border-slate-100 dark:border-[#1a2744] font-mono text-slate-500 dark:text-slate-500">
+              (winst + dividend) ÷ inleg
+            </div>
+          </div>
         </div>
       </div>
 
