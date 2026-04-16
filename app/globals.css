@@ -40,3 +40,20 @@ body {
   transition: filter 0.2s ease;
 }
 .privacy-blur:hover { filter: blur(0px); }
+
+/* ── Dark mode scrollbars ──────────────────────────────────────────────────── */
+.dark ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.dark ::-webkit-scrollbar-track {
+  background: #0b1120;
+  border-radius: 999px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #1a2744;
+  border-radius: 999px;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #243560;
+}

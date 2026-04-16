@@ -134,7 +134,7 @@ export function AllocationBreakdown({ positions }: Props) {
         </div>
 
         {/* Legend list */}
-        <div className="flex-1 min-w-0 space-y-1.5 max-h-44 overflow-y-auto pr-1">
+        <div className="flex-1 min-w-0 space-y-1.5 max-h-44 overflow-y-auto pr-1 scrollbar-thin">
           {chartData.map((entry, i) => {
             const color = "color" in entry ? (entry as any).color : getColor(entry.name, i)
             return (
