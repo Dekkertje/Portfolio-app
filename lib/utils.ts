@@ -94,6 +94,54 @@ export function isCrypto(productName: string, isin?: string | null): boolean {
 }
 
 /**
+ * Maps a DEGIRO crypto product name / ISIN to a Yahoo Finance symbol (e.g. "BTC-EUR").
+ * Returns null when no mapping is known.
+ *
+ * DEGIRO ISIN format for crypto: "XD.BTC.EUR" — the ticker sits between the first two dots.
+ * Yahoo Finance crypto format: "{TICKER}-EUR"
+ */
+export function getCryptoYahooSymbol(productName: string, isin?: string | null): string | null {
+  // Extract ticker from DEGIRO-style ISIN (e.g. "XD.BTC.EUR" → "BTC")
+  if (isin) {
+    const isinMatch = isin.match(/^XD\.([A-Z]+)\./i)
+    if (isinMatch) return `${isinMatch[1].toUpperCase()}-EUR`
+  }
+
+  const upper = productName.toUpperCase()
+
+  const NAME_TO_TICKER: Record<string, string> = {
+    BITCOIN:   "BTC",
+    ETHEREUM:  "ETH",
+    RIPPLE:    "XRP",
+    XRP:       "XRP",
+    SOLANA:    "SOL",
+    CARDANO:   "ADA",
+    POLKADOT:  "DOT",
+    DOGECOIN:  "DOGE",
+    LITECOIN:  "LTC",
+    CHAINLINK: "LINK",
+    POLYGON:   "MATIC",
+    AVALANCHE: "AVAX",
+    UNISWAP:   "UNI",
+    COSMOS:    "ATOM",
+    STELLAR:   "XLM",
+    TRON:      "TRX",
+    SHIBA:     "SHIB",
+    PEPE:      "PEPE",
+  }
+
+  for (const [name, ticker] of Object.entries(NAME_TO_TICKER)) {
+    if (upper.includes(name)) return `${ticker}-EUR`
+  }
+
+  // Fallback: if product is already a "XXX/EUR" or "XXX-EUR" style symbol
+  const slashMatch = upper.match(/^([A-Z]{2,8})[/-]EUR$/)
+  if (slashMatch) return `${slashMatch[1]}-EUR`
+
+  return null
+}
+
+/**
  * Format a number as a percentage with sign
  */
 export function formatPercentage(value: number, decimals: number = 2): string {

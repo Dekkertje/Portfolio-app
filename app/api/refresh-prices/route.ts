@@ -3,6 +3,7 @@ import { createServerSupabaseClient, createServiceSupabaseClient } from "@/lib/s
 import { matchPosition }              from "@/lib/matching/engine"
 import { getQuote, getDividendInfo, normalisePencePrice } from "@/lib/providers/yahoo"
 import { getFXRate }                  from "@/lib/providers/fx"
+import { isCrypto, getCryptoYahooSymbol } from "@/lib/utils"
 
 // ─── POST /api/refresh-prices ────────────────────────────────────────────────
 // Fetches current prices for all positions (DEGIRO transactions + manual)
@@ -90,11 +91,16 @@ async function processItem(
   let yahooSymbol = item.yahooSymbol   // already set for manual positions
 
   if (!yahooSymbol) {
-    const match = await matchPosition(
-      { isin: item.isin, product_name: item.product },
-      supabase
-    )
-    yahooSymbol = match.yahoo_symbol
+    // Fast path for crypto: bypass securities table (crypto isn't in it)
+    if (isCrypto(item.product, item.isin)) {
+      yahooSymbol = getCryptoYahooSymbol(item.product, item.isin)
+    } else {
+      const match = await matchPosition(
+        { isin: item.isin, product_name: item.product },
+        supabase
+      )
+      yahooSymbol = match.yahoo_symbol
+    }
   }
 
   if (!yahooSymbol) {
