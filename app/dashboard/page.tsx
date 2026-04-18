@@ -1193,6 +1193,7 @@ export default function DashboardPage() {
               product:      p.product,
               currentValue: p.currentValue,
               isETF:        p.isETF,
+              isCrypto:     p.isCrypto,
               sector:       p.sector,
             }))} />
           </div>
