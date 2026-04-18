@@ -495,10 +495,11 @@ export default function DashboardPage() {
       }
 
       if (!silent) {
-        const msg = data.inserted === 0 && data.errors?.length
-          ? `0 koersen ververst. Eerste fout: ${data.errors[0]}`
-          : data.message || `${data.inserted} koersen ververst!`
+        const msg = data.message || `${data.inserted} koersen ververst!`
         showToast(msg, data.inserted === 0 ? "error" : "success")
+        if (data.errors?.length) {
+          console.warn("Koersen overgeslagen:", data.errors)
+        }
       }
       await loadDashboard() // Reload data instead of full page refresh
 

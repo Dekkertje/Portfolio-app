@@ -104,14 +104,14 @@ async function processItem(
   }
 
   if (!yahooSymbol) {
-    return { skipped: true, reason: `No symbol found for: ${item.product} (ISIN: ${item.isin ?? "N/A"})` }
+    return { skipped: true, reason: `No symbol: ${item.product} (ISIN: ${item.isin ?? "N/A"})` }
   }
 
   // ── Fetch quote ───────────────────────────────────────────────────────────
   const quote = await getQuote(yahooSymbol)
 
   if (!quote) {
-    return { skipped: true, reason: `No price data for ${yahooSymbol}` }
+    return { skipped: true, reason: `No quote for ${yahooSymbol} (${item.product})` }
   }
 
   // ── Currency conversion + pence fix ──────────────────────────────────────
