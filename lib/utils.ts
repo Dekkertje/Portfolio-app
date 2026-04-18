@@ -101,13 +101,22 @@ export function isCrypto(productName: string, isin?: string | null): boolean {
  * Yahoo Finance crypto format: "{TICKER}-EUR"
  */
 export function getCryptoYahooSymbol(productName: string, isin?: string | null): string | null {
-  // Extract ticker from DEGIRO-style ISIN (e.g. "XD.BTC.EUR" → "BTC")
+  // DEGIRO ISIN format: "XD.{TICKER}.{CURRENCY}" — extract both parts
   if (isin) {
-    const isinMatch = isin.match(/^XD\.([A-Z]+)\./i)
-    if (isinMatch) return `${isinMatch[1].toUpperCase()}-EUR`
+    const isinMatch = isin.match(/^XD\.([A-Z0-9]+)\.([A-Z]+)$/i)
+    if (isinMatch) {
+      const ticker   = isinMatch[1].toUpperCase()
+      const currency = isinMatch[2].toUpperCase()
+      return `${ticker}-${currency}`
+    }
   }
 
   const upper = productName.toUpperCase()
+
+  // Detect currency suffix from product name (e.g. "XRP XRP USD" → "USD")
+  const currency = upper.includes(" USD") || upper.endsWith("/USD") || upper.endsWith("-USD")
+    ? "USD"
+    : "EUR"
 
   const NAME_TO_TICKER: Record<string, string> = {
     BITCOIN:   "BTC",
@@ -131,12 +140,12 @@ export function getCryptoYahooSymbol(productName: string, isin?: string | null):
   }
 
   for (const [name, ticker] of Object.entries(NAME_TO_TICKER)) {
-    if (upper.includes(name)) return `${ticker}-EUR`
+    if (upper.includes(name)) return `${ticker}-${currency}`
   }
 
-  // Fallback: if product is already a "XXX/EUR" or "XXX-EUR" style symbol
-  const slashMatch = upper.match(/^([A-Z]{2,8})[/-]EUR$/)
-  if (slashMatch) return `${slashMatch[1]}-EUR`
+  // Fallback: product is already a "XXX/USD", "XXX-EUR" etc. style symbol
+  const slashMatch = upper.match(/^([A-Z]{2,8})[/-](EUR|USD)$/)
+  if (slashMatch) return `${slashMatch[1]}-${slashMatch[2]}`
 
   return null
 }
