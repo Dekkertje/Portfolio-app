@@ -12,6 +12,7 @@ type Position = {
   totalFees: number
   realizedPnL: number
   isETF: boolean
+  isCrypto?: boolean
   dayChangeValue?: number
   dayChangePercent?: number
   totalDividendsReceived?: number
@@ -211,8 +212,13 @@ export function PositionsTable({ positions, onDeletePosition }: PositionsTablePr
                     <div className="flex items-center gap-2">
                       <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{position.product}</div>
                       {position.isETF && (
-                        <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                        <span className="rounded-full bg-purple-100 dark:bg-purple-900/30 px-2 py-0.5 text-xs font-medium text-purple-700 dark:text-purple-400">
                           ETF
+                        </span>
+                      )}
+                      {position.isCrypto && (
+                        <span className="rounded-full bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 text-xs font-medium text-orange-700 dark:text-orange-400">
+                          Crypto
                         </span>
                       )}
                     </div>

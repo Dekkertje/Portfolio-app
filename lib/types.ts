@@ -51,6 +51,7 @@ export type Position = {
   totalFees: number
   realizedPnL: number
   isETF: boolean
+  isCrypto?: boolean
   sector?: string
   previousClose?: number
   dayChange?: number

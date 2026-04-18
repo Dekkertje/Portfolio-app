@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/Button"
 import { useToast } from "@/components/ui/Toast"
 import { RefreshCw, Plus, DollarSign, BarChart2 } from "lucide-react"
 import { Transaction, Price, Position } from "@/lib/types"
-import { formatCurrency, isETF, getSector, generatePerformanceData, BenchmarkType } from "@/lib/utils"
+import { formatCurrency, isETF, isCrypto, getSector, generatePerformanceData, BenchmarkType } from "@/lib/utils"
 import { PeriodFilter, Period } from "@/components/dashboard/PeriodFilter"
 import { BenchmarkChart } from "@/components/dashboard/BenchmarkChart"
 import { BenchmarkSelector } from "@/components/dashboard/BenchmarkSelector"
@@ -198,8 +198,6 @@ export default function DashboardPage() {
         const key = `${tx.product}__${tx.isin || ""}`
 
         if (!grouped[key]) {
-          const isProductETF = isETF(tx.product)
-
           grouped[key] = {
             product: tx.product,
             isin: tx.isin,
@@ -210,7 +208,8 @@ export default function DashboardPage() {
             currentValue: 0,
             totalFees: 0,
             realizedPnL: 0,
-            isETF: isProductETF,
+            isETF: isETF(tx.product),
+            isCrypto: isCrypto(tx.product, tx.isin),
           }
         }
 
@@ -273,6 +272,7 @@ export default function DashboardPage() {
               totalFees: 0,
               realizedPnL: 0,
               isETF: isETF(mp.product_name),
+              isCrypto: isCrypto(mp.product_name, mp.isin),
               isManual: true,
               manualPositionId: mp.id,
             }
@@ -316,6 +316,7 @@ export default function DashboardPage() {
             totalFees: p.totalFees,
             realizedPnL: p.realizedPnL,
             isETF: p.isETF,
+            isCrypto: p.isCrypto,
             sector,
             previousClose,
             dayChange,
@@ -533,9 +534,10 @@ export default function DashboardPage() {
 
 
   // Memoized calculations to prevent unnecessary re-renders
-  const { stocks, etfs, metrics, sectorData } = useMemo(() => {
-    const stocksList = positions.filter(p => !p.isETF)
-    const etfsList = positions.filter(p => p.isETF)
+  const { stocks, etfs, crypto, metrics, sectorData } = useMemo(() => {
+    const stocksList = positions.filter(p => !p.isETF && !p.isCrypto)
+    const etfsList   = positions.filter(p => p.isETF)
+    const cryptoList = positions.filter(p => p.isCrypto)
 
     // ── Basis ────────────────────────────────────────────────────────────────
     const totalValue = positions.reduce((sum, p) => sum + p.currentValue, 0)
@@ -606,6 +608,7 @@ export default function DashboardPage() {
     return {
       stocks: stocksList,
       etfs: etfsList,
+      crypto: cryptoList,
       metrics: {
         totalValue,
         totalCost,
@@ -1228,6 +1231,20 @@ export default function DashboardPage() {
                   </h2>
                 </div>
                 <PositionsTable positions={etfs} onDeletePosition={handleDeletePosition} />
+              </div>
+            )}
+            {crypto.length > 0 && (
+              <div id="crypto-section" className="scroll-mt-8">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <span className="text-lg">₿</span>
+                    Crypto
+                    <span className="ml-1 text-sm font-normal text-slate-400 dark:text-slate-500">
+                      <PrivacyText>{crypto.length} · {formatCurrency(crypto.reduce((s, p) => s + p.currentValue, 0))}</PrivacyText>
+                    </span>
+                  </h2>
+                </div>
+                <PositionsTable positions={crypto} onDeletePosition={handleDeletePosition} />
               </div>
             )}
           </>

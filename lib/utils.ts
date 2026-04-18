@@ -75,12 +75,22 @@ export function detectTransactionType(localValue: number): string {
  */
 export function isETF(productName: string): boolean {
   const upperProduct = productName.toUpperCase()
-
-  // Check for whole-word matches using word boundaries
-  // ETF must be a separate word, not part of another word like "NETFLIX"
   const etfPattern = /\bETF\b|\bUCITS\b|\bTRACKER\b|\bINDEX[- ]?FUND\b/
-
   return etfPattern.test(upperProduct)
+}
+
+/**
+ * Determines if a product is a cryptocurrency based on common names/keywords.
+ * DEGIRO lists crypto as e.g. "BITCOIN" / "BTC/EUR" / "ETHEREUM" / "ETH/EUR".
+ */
+export function isCrypto(productName: string, isin?: string | null): boolean {
+  const upper = productName.toUpperCase()
+  // Known DEGIRO crypto product name patterns
+  const cryptoPattern = /\b(BITCOIN|BTC|ETHEREUM|ETH|XRP|RIPPLE|SOLANA|SOL|CARDANO|ADA|POLKADOT|DOT|DOGECOIN|DOGE|LITECOIN|LTC|CHAINLINK|LINK|POLYGON|MATIC|AVALANCHE|AVAX|UNISWAP|UNI|CRYPTO|COIN)\b/
+  if (cryptoPattern.test(upper)) return true
+  // DEGIRO crypto ISINs often start with XD or have no ISIN (use symbol like BTC/EUR)
+  if (isin && /^XD/i.test(isin)) return true
+  return false
 }
 
 /**
@@ -164,6 +174,9 @@ export function getSector(product: string, isin?: string | null): string {
       upperProduct.includes("MEDICAL") || upperProduct.includes("BIO")) {
     return "Healthcare"
   }
+
+  // Crypto
+  if (isCrypto(product, isin)) return "Crypto"
 
   // ETFs/Index Funds - check if it's an ETF
   if (isETF(product)) {

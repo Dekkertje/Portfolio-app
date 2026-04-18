@@ -9,6 +9,7 @@ type Position = {
   product: string
   currentValue: number
   isETF: boolean
+  isCrypto?: boolean
   sector?: string
 }
 
@@ -17,21 +18,22 @@ type Props = {
 }
 
 const SECTOR_COLORS: Record<string, string> = {
-  "Semiconductors":    "#a3e635",
-  "Technology":        "#22d3ee",
-  "Software & Cloud":  "#818cf8",
+  "Semiconductors":        "#a3e635",
+  "Technology":            "#22d3ee",
+  "Software & Cloud":      "#818cf8",
   "Media & Entertainment": "#f472b6",
-  "Cybersecurity":     "#fb923c",
-  "Data Analytics":    "#34d399",
-  "Financial Services":"#fbbf24",
-  "Energy":            "#4ade80",
-  "Consumer":          "#e879f9",
-  "Healthcare":        "#38bdf8",
-  "Tech ETF":          "#6366f1",
-  "Index ETF":         "#14b8a6",
-  "Dividend ETF":      "#f59e0b",
-  "ETF":               "#8b5cf6",
-  "Overig":            "#64748b",
+  "Cybersecurity":         "#fb923c",
+  "Data Analytics":        "#34d399",
+  "Financial Services":    "#fbbf24",
+  "Energy":                "#4ade80",
+  "Consumer":              "#e879f9",
+  "Healthcare":            "#38bdf8",
+  "Tech ETF":              "#6366f1",
+  "Index ETF":             "#14b8a6",
+  "Dividend ETF":          "#f59e0b",
+  "ETF":                   "#8b5cf6",
+  "Crypto":                "#f97316",
+  "Overig":                "#64748b",
 }
 
 function getColor(sector: string, idx: number): string {
@@ -62,12 +64,14 @@ export function AllocationBreakdown({ positions }: Props) {
     .map(([name, value]) => ({ name, value, pct: (value / totalValue) * 100 }))
     .sort((a, b) => b.value - a.value)
 
-  // ── ETF / Aandelen aggregation ────────────────────────────────────────────
+  // ── Type aggregation (Aandelen / ETF's / Crypto) ──────────────────────────
   const etfValue    = positions.filter(p =>  p.isETF).reduce((s, p) => s + p.currentValue, 0)
-  const stockValue  = positions.filter(p => !p.isETF).reduce((s, p) => s + p.currentValue, 0)
+  const cryptoValue = positions.filter(p =>  p.isCrypto).reduce((s, p) => s + p.currentValue, 0)
+  const stockValue  = positions.filter(p => !p.isETF && !p.isCrypto).reduce((s, p) => s + p.currentValue, 0)
   const typeData = [
-    { name: "Aandelen", value: stockValue, pct: (stockValue / totalValue) * 100, color: "#a3e635" },
-    { name: "ETF's",    value: etfValue,   pct: (etfValue   / totalValue) * 100, color: "#22d3ee" },
+    { name: "Aandelen", value: stockValue,  pct: (stockValue  / totalValue) * 100, color: "#a3e635" },
+    { name: "ETF's",    value: etfValue,    pct: (etfValue    / totalValue) * 100, color: "#22d3ee" },
+    { name: "Crypto",   value: cryptoValue, pct: (cryptoValue / totalValue) * 100, color: "#f97316" },
   ].filter(d => d.value > 0)
 
   const chartData = tab === "sector" ? sectorData : typeData
