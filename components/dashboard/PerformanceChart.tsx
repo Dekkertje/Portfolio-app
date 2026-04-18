@@ -11,6 +11,7 @@ import {
   ReferenceLine,
 } from "recharts"
 import { useTheme } from "@/contexts/ThemeContext"
+import { useMemo } from "react"
 
 export type ChartMode = "value" | "pnl"
 
@@ -186,8 +187,8 @@ export function PerformanceChart({ data, mode = "value", costBasis }: Performanc
   const gridColor    = isDark ? "#334155" : "#e2e8f0"
   const axisColor    = isDark ? "#94a3b8" : "#64748b"
   const lastPoint    = data[data.length - 1]
-  const tickFormatter = buildTickFormatter(data)
-  const xTicks        = selectTicks(data)
+  const tickFormatter = useMemo(() => buildTickFormatter(data), [data])
+  const xTicks        = useMemo(() => selectTicks(data), [data])
 
   // ── P&L mode ─────────────────────────────────────────────────────────────────
   if (mode === "pnl") {

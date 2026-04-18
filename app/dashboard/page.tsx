@@ -200,12 +200,6 @@ export default function DashboardPage() {
         if (!grouped[key]) {
           const isProductETF = isETF(tx.product)
 
-          // Debug ETF classification for Netflix
-          if (tx.product.toUpperCase().includes("NETFLIX")) {
-            // eslint-disable-next-line no-console
-            console.log(`🎬 Netflix classification: isETF=${isProductETF}, product="${tx.product}"`)
-          }
-
           grouped[key] = {
             product: tx.product,
             isin: tx.isin,
@@ -226,12 +220,6 @@ export default function DashboardPage() {
 
         // Track fees for informational purposes
         grouped[key].totalFees += fees
-
-        // Debug ASML transactions
-        if (tx.product.toUpperCase().includes("ASML")) {
-          // eslint-disable-next-line no-console
-          console.log(`ASML TX: ${tx.trade_date} | Type: ${tx.transaction_type} | Qty: ${tx.quantity} | Total: ${tx.total_eur} | Current position: ${grouped[key].quantity}`)
-        }
 
         if (tx.transaction_type === "buy") {
           grouped[key].quantity += absQuantity
@@ -266,11 +254,6 @@ export default function DashboardPage() {
           if (grouped[key].invested < 0) grouped[key].invested = 0
         }
 
-        // Debug ASML position after transaction
-        if (tx.product.toUpperCase().includes("ASML")) {
-          // eslint-disable-next-line no-console
-          console.log(`  → After: ${grouped[key].quantity} aandelen | Invested: €${grouped[key].invested.toFixed(2)}`)
-        }
       }
 
       // Add manual positions to grouped
@@ -305,12 +288,6 @@ export default function DashboardPage() {
           const priceData = latestPriceMap[key]
           const currentPrice = priceData ? Number(priceData.price) : avgPrice
           const currentValue = p.quantity * currentPrice
-
-          // Debug price source
-          if (!priceData) {
-            // eslint-disable-next-line no-console
-            console.log(`⚠️  Using avg price for ${p.product}: €${avgPrice.toFixed(2)} (no market data)`)
-          }
 
           // Daily P&L calculation - use previous_close from database
           // Note: If previous_close is not available, we cannot calculate daily P&L accurately
@@ -503,27 +480,9 @@ export default function DashboardPage() {
 
   async function handleRefreshPrices(silent = false) {
     setRefreshing(true)
-    if (!silent) {
-      // eslint-disable-next-line no-console
-      console.log("🔄 Starting price refresh...")
-    }
     try {
-      const res = await fetch("/api/refresh-prices", {
-        method: "POST",
-      })
-
-      if (!silent) {
-        // eslint-disable-next-line no-console
-        console.log(`📡 API Response status: ${res.status}`)
-      }
-
+      const res = await fetch("/api/refresh-prices", { method: "POST" })
       const data = await res.json()
-
-      // Log errors to console so we can diagnose skipped symbols
-      if (data.errors?.length) {
-        // eslint-disable-next-line no-console
-        console.warn("⚠️ Refresh errors:", data.errors.slice(0, 5))
-      }
 
       if (!res.ok) {
         if (!silent) {
@@ -544,9 +503,8 @@ export default function DashboardPage() {
       if (!silent) {
         setTimeout(() => savePortfolioSnapshot(), 1000)
       }
-    } catch (error) {
+    } catch {
       if (!silent) {
-        console.error("❌ Error refreshing prices:", error)
         showToast("Er ging iets mis bij het verversen van koersen.", "error")
       }
     } finally {
@@ -560,7 +518,7 @@ export default function DashboardPage() {
 
     const interval = setInterval(() => {
       handleRefreshPrices(true) // Silent refresh
-    }, 10000) // 10 seconds
+    }, 60000) // 60 seconds
 
     return () => clearInterval(interval)
   }, [autoRefreshEnabled])
@@ -933,35 +891,35 @@ export default function DashboardPage() {
   // This runs once per portfolio load and may take a few seconds on first load.
   useEffect(() => {
     if (!portfolioId) return
+    const controller = new AbortController()
     setHistoryLoading(true)
-    fetch(`/api/portfolio-history?portfolio_id=${portfolioId}`)
+    fetch(`/api/portfolio-history?portfolio_id=${portfolioId}`, { signal: controller.signal })
       .then(r => r.json())
       .then(data => {
-        if (data.history && Array.isArray(data.history)) {
-          setPortfolioHistory(data.history)
-        }
+        if (data.history && Array.isArray(data.history)) setPortfolioHistory(data.history)
       })
-      .catch(err => console.error('[portfolio-history]', err))
+      .catch(() => {})
       .finally(() => setHistoryLoading(false))
+    return () => controller.abort()
   }, [portfolioId])
 
   // Fetch real benchmark data whenever benchmark type or period changes
   useEffect(() => {
+    const controller = new AbortController()
     setBenchmarkLoading(true)
     const params = new URLSearchParams({ benchmark: selectedBenchmark, period: benchmarkPeriod })
     if (benchmarkPeriod === 'CUSTOM' && benchmarkCustomStart && benchmarkCustomEnd) {
       params.set('from', benchmarkCustomStart)
       params.set('to',   benchmarkCustomEnd)
     }
-    fetch(`/api/benchmark-history?${params}`)
+    fetch(`/api/benchmark-history?${params}`, { signal: controller.signal })
       .then(r => r.json())
       .then(data => {
-        if (data.history && Array.isArray(data.history)) {
-          setBenchmarkHistory(data.history)
-        }
+        if (data.history && Array.isArray(data.history)) setBenchmarkHistory(data.history)
       })
-      .catch(err => console.error('[benchmark-history]', err))
+      .catch(() => {})
       .finally(() => setBenchmarkLoading(false))
+    return () => controller.abort()
   }, [selectedBenchmark, benchmarkPeriod, benchmarkCustomStart, benchmarkCustomEnd])
 
   // Period-specific performance metrics
