@@ -91,9 +91,14 @@ async function processItem(
   let yahooSymbol = item.yahooSymbol   // already set for manual positions
 
   if (!yahooSymbol) {
-    // Fast path for crypto: bypass securities table (crypto isn't in it)
     if (isCrypto(item.product, item.isin)) {
-      yahooSymbol = getCryptoYahooSymbol(item.product, item.isin)
+      // If DEGIRO stored the ISIN as a Yahoo-style ticker (e.g. "XRP-USD", "BTC-EUR"),
+      // use it directly — no further resolution needed.
+      if (item.isin && /^[A-Z0-9]+-[A-Z]{3}$/i.test(item.isin)) {
+        yahooSymbol = item.isin.toUpperCase()
+      } else {
+        yahooSymbol = getCryptoYahooSymbol(item.product, item.isin)
+      }
     } else {
       const match = await matchPosition(
         { isin: item.isin, product_name: item.product },
