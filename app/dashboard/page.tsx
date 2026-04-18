@@ -79,17 +79,19 @@ export default function DashboardPage() {
 
   async function loadDashboard() {
     try {
-      const { data: userData, error: authError } = await supabase.auth.getUser()
+      const { data: sessionData } = await supabase.auth.getSession()
 
-      if (authError || !userData.user) {
+      if (!sessionData.session?.user) {
         window.location.href = "/login"
         return
       }
 
+      const userId = sessionData.session.user.id
+
       const { data: portfolio } = await supabase
         .from("portfolios")
         .select("id")
-        .eq("user_id", userData.user.id)
+        .eq("user_id", userId)
         .single()
 
       if (!portfolio) {
