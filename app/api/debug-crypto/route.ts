@@ -9,32 +9,31 @@ import { getFXRate } from "@/lib/providers/fx"
 export async function GET() {
   const supabase = createServiceSupabaseClient()
 
-  // 1. Find all transactions
-  const { data: transactions, error: txError } = await supabase
-    .from("transactions")
-    .select("product, isin")
+  // 1. Find all manual positions (XRP is likely here, not in transactions)
+  const { data: manualPositions, error: mpError } = await supabase
+    .from("manual_positions")
+    .select("product_name, isin, yahoo_symbol, quantity, average_price")
 
-  // Show all unique products so we can see what's actually in the DB
-  const allUnique = new Map<string, string | null>()
-  for (const t of transactions ?? []) {
-    allUnique.set(t.product, t.isin)
-  }
-  const allProducts = Array.from(allUnique.entries()).map(([product, isin]) => ({
-    product, isin, detectedAsCrypto: isCrypto(product, isin)
+  const manualProducts = (manualPositions ?? []).map(mp => ({
+    product: mp.product_name,
+    isin: mp.isin,
+    yahoo_symbol: mp.yahoo_symbol,
+    quantity: mp.quantity,
+    average_price: mp.average_price,
+    detectedAsCrypto: isCrypto(mp.product_name, mp.isin),
   }))
 
-  const cryptoTransactions = (transactions ?? []).filter(t =>
-    isCrypto(t.product, t.isin)
-  )
-
-  // Deduplicate
+  // 2. Build crypto items from manual positions
+  type Item = { product: string; isin: string | null; yahooSymbol: string | null }
   const seen = new Set<string>()
-  const uniqueCrypto = cryptoTransactions.filter(t => {
-    const key = `${t.product}__${t.isin}`
-    if (seen.has(key)) return false
+  const uniqueCrypto: Item[] = []
+  for (const mp of manualPositions ?? []) {
+    if (!isCrypto(mp.product_name, mp.isin) && !mp.yahoo_symbol?.match(/^[A-Z]+-USD$/)) continue
+    const key = `${mp.product_name}__${mp.isin}`
+    if (seen.has(key)) continue
     seen.add(key)
-    return true
-  })
+    uniqueCrypto.push({ product: mp.product_name, isin: mp.isin ?? null, yahooSymbol: mp.yahoo_symbol ?? null })
+  }
 
   // 2. Check what's in prices table for these products
   const { data: prices } = await supabase
@@ -98,5 +97,5 @@ export async function GET() {
     }
   }))
 
-  return NextResponse.json({ usdToEur, txError: txError?.message ?? null, allProducts, results })
+  return NextResponse.json({ usdToEur, mpError: mpError?.message ?? null, manualProducts, results })
 }
