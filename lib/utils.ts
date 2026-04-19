@@ -303,7 +303,7 @@ export function generatePerformanceData(
   period: string,
   customStartDate?: string,
   customEndDate?: string
-): { date: string; value: number; invested: number; pnl: number }[] {
+): { date: string; isoDate: string; value: number; invested: number; pnl: number }[] {
   let startDate: Date
   let endDate: Date
 
@@ -358,7 +358,7 @@ export function generatePerformanceData(
     periodReturnPct = totalReturnPct * 0.5
   }
 
-  const data: { date: string; value: number; invested: number; pnl: number }[] = []
+  const data: { date: string; isoDate: string; value: number; invested: number; pnl: number }[] = []
 
   // Start value should be based on current value minus the period return
   const endValue = totalValue
@@ -388,6 +388,7 @@ export function generatePerformanceData(
     const v = Math.max(0, finalValue)
     data.push({
       date:     dateStr,
+      isoDate:  currentDate.toISOString().split('T')[0],
       value:    v,
       invested: totalCost,
       pnl:      v - totalCost,

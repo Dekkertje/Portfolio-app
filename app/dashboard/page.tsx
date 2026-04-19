@@ -754,6 +754,23 @@ export default function DashboardPage() {
           snapParams.set('start', customStartDate)
           snapParams.set('end', customEndDate)
         }
+        // Calculate period start/end — used whether or not snapshots are found
+        let periodStartIso: string
+        if (selectedPeriod === 'CUSTOM' && customStartDate) {
+          periodStartIso = customStartDate
+        } else {
+          const periodStart = new Date()
+          if      (selectedPeriod === '1W')  periodStart.setDate(periodStart.getDate() - 7)
+          else if (selectedPeriod === '1M')  periodStart.setMonth(periodStart.getMonth() - 1)
+          else if (selectedPeriod === '3M')  periodStart.setMonth(periodStart.getMonth() - 3)
+          else if (selectedPeriod === '6M')  periodStart.setMonth(periodStart.getMonth() - 6)
+          else if (selectedPeriod === '1Y')  periodStart.setFullYear(periodStart.getFullYear() - 1)
+          else if (selectedPeriod === 'YTD') { periodStart.setMonth(0); periodStart.setDate(1) }
+          else if (selectedPeriod === 'ALL') periodStart.setFullYear(2000)
+          periodStartIso = periodStart.toISOString().split('T')[0]
+        }
+        const periodEndIso = selectedPeriod === 'CUSTOM' && customEndDate ? customEndDate : new Date().toISOString().split('T')[0]
+
         const res = await fetch(`/api/save-snapshot?${snapParams}`)
         if (res.ok) {
           const { snapshots } = await res.json()
@@ -779,22 +796,6 @@ export default function DashboardPage() {
               })
 
             const firstSnapIso = snapshots[0]?.snapshot_date as string | undefined
-
-            // Calculate the period start date (same logic as save-snapshot API)
-            let periodStartIso: string
-            if (selectedPeriod === 'CUSTOM' && customStartDate) {
-              periodStartIso = customStartDate
-            } else {
-              const periodStart = new Date()
-              if      (selectedPeriod === '1W')  periodStart.setDate(periodStart.getDate() - 7)
-              else if (selectedPeriod === '1M')  periodStart.setMonth(periodStart.getMonth() - 1)
-              else if (selectedPeriod === '3M')  periodStart.setMonth(periodStart.getMonth() - 3)
-              else if (selectedPeriod === '6M')  periodStart.setMonth(periodStart.getMonth() - 6)
-              else if (selectedPeriod === '1Y')  periodStart.setFullYear(periodStart.getFullYear() - 1)
-              else if (selectedPeriod === 'YTD') { periodStart.setMonth(0); periodStart.setDate(1) }
-              else if (selectedPeriod === 'ALL') periodStart.setFullYear(2000)  // effectively "all time"
-              periodStartIso = periodStart.toISOString().split('T')[0]
-            }
 
             // Prepend transaction-based cost-basis points for dates that fall
             // within the selected period but BEFORE the first snapshot.
@@ -836,10 +837,11 @@ export default function DashboardPage() {
               ...snapshotPoints.map(({ isoDate, ...rest }) => ({ ...rest, isoDate })),
             ]
 
-            // Add today's live values if today not already in snapshots
+            // Add today's live values if today not already in snapshots,
+            // but only when today falls within the selected period's end date.
             const today = new Date().toISOString().split('T')[0]
             const hasToday = snapshots.some((s: any) => s.snapshot_date === today)
-            if (!hasToday) {
+            if (!hasToday && today <= periodEndIso) {
               historicalData.push({
                 isoDate:  today,
                 date:     new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
@@ -850,8 +852,30 @@ export default function DashboardPage() {
             }
 
             setPerformanceData(historicalData)
+          } else if (portfolioHistory && portfolioHistory.length > 0) {
+            // No snapshots for this range, but we have reconstructed history — use it directly.
+            const filtered: PerfPoint[] = portfolioHistory
+              .filter(h => h.date >= periodStartIso && h.date <= periodEndIso)
+              .map(h => ({
+                isoDate:  h.date,
+                date:     new Date(h.date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: '2-digit' }),
+                value:    h.value,
+                invested: h.cost,
+                pnl:      h.pnl,
+              }))
+            const todayIso = new Date().toISOString().split('T')[0]
+            if (filtered.length > 0 && todayIso <= periodEndIso && !filtered.some(p => p.isoDate === todayIso)) {
+              filtered.push({
+                isoDate:  todayIso,
+                date:     new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
+                value:    metrics.totalValue,
+                invested: metrics.totalCost,
+                pnl:      metrics.totalReturn,
+              })
+            }
+            setPerformanceData(filtered.length > 0 ? filtered : simulatedData)
           } else {
-            // No snapshots, use simulated data
+            // No snapshots and no history — fall back to simulated data
             setPerformanceData(simulatedData)
           }
         } else {
