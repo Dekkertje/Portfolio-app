@@ -427,8 +427,9 @@ export type YahooNewsItem = {
   thumbnail: string | null
 }
 
-export async function getPositionNews(symbol: string, count = 8): Promise<YahooNewsItem[]> {
-  const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(symbol)}&quotesCount=0&newsCount=${count}&enableFuzzyQuery=false`
+export async function getPositionNews(symbol: string, count = 8, searchQuery?: string): Promise<YahooNewsItem[]> {
+  const q = searchQuery ?? symbol
+  const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=0&newsCount=${count}&enableFuzzyQuery=false`
 
   let res: Response
   try {

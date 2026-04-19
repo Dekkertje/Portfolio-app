@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, ArrowLeftRight, Upload, LogOut, TrendingUp, Users, Moon, Sun, Settings, User, Eye, EyeOff, ChevronLeft, ChevronRight } from "lucide-react"
+import { LayoutDashboard, ArrowLeftRight, Upload, LogOut, TrendingUp, Users, Moon, Sun, Settings, User, Eye, EyeOff, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react"
 import { supabase } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { useTheme } from "@/contexts/ThemeContext"
@@ -19,6 +19,7 @@ type NavItem = {
 
 const navigation: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Dividenden", href: "/dashboard/dividenden", icon: CalendarDays },
   { name: "Transacties", href: "/transactions", icon: ArrowLeftRight },
   { name: "Importeren", href: "/import", icon: Upload },
   { name: "Politicians", href: "/politicians", icon: Users },

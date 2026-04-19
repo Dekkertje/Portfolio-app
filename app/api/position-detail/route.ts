@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
   // ── Fetch data in parallel ─────────────────────────────────────────────────
   const [metrics, news, chart] = await Promise.all([
     getDetailedMetrics(yahooSymbol),
-    getPositionNews(yahooSymbol),
+    getPositionNews(yahooSymbol, 8, product),
     getHistoricalChart(yahooSymbol, "1y"),
   ])
 
