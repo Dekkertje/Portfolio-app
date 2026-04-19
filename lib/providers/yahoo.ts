@@ -357,61 +357,58 @@ export type YahooDetailedMetrics = {
 }
 
 export async function getDetailedMetrics(symbol: string): Promise<YahooDetailedMetrics | null> {
-  const modules = "price,summaryDetail,defaultKeyStatistics,financialData,recommendationTrend"
-  const url = `${BASE_V10}/quoteSummary/${encodeURIComponent(symbol)}?modules=${modules}`
+  // yahoo-finance2 handles the auth crumb automatically
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const yf2Pkg = require("yahoo-finance2")
+  const yf2 = new yf2Pkg.default({ suppressNotices: ["yahooSurvey"] })
 
-  let res: Response
+  let result: any
   try {
-    res = await fetchWithRetry(url)
+    result = await yf2.quoteSummary(symbol, {
+      modules: ["price", "summaryDetail", "defaultKeyStatistics", "financialData", "recommendationTrend"],
+    })
   } catch {
     return null
   }
 
-  let json: unknown
-  try { json = await res.json() } catch { return null }
-
-  const result    = (json as any)?.quoteSummary?.result?.[0]
   if (!result) return null
 
-  const price     = result.price          ?? {}
-  const summary   = result.summaryDetail  ?? {}
-  const keyStats  = result.defaultKeyStatistics ?? {}
-  const financial = result.financialData  ?? {}
-  const trend     = result.recommendationTrend?.trend?.[0] ?? {}  // most recent period
+  const price     = result.price                    ?? {}
+  const summary   = result.summaryDetail            ?? {}
+  const keyStats  = result.defaultKeyStatistics     ?? {}
+  const financial = result.financialData            ?? {}
+  const trend     = result.recommendationTrend?.trend?.[0] ?? {}
 
-  const raw = (obj: any, field: string): number | null => {
-    const v = obj?.[field]?.raw ?? obj?.[field]
-    return typeof v === "number" ? v : null
-  }
+  const n = (v: unknown): number | null => (typeof v === "number" ? v : null)
 
   return {
     name:             price.longName ?? price.shortName ?? symbol,
-    exchange:         price.exchangeName ?? price.exchange ?? "",
+    exchange:         price.fullExchangeName ?? price.exchangeName ?? price.exchange ?? "",
     currency:         price.currency ?? "USD",
     quoteType:        price.quoteType ?? "",
-    currentPrice:     raw(price, "regularMarketPrice") ?? 0,
-    dayChange:        raw(price, "regularMarketChange") ?? 0,
-    dayChangePercent: (raw(price, "regularMarketChangePercent") ?? 0) * 100,
-    dayHigh:          raw(price, "regularMarketDayHigh"),
-    dayLow:           raw(price, "regularMarketDayLow"),
-    volume:           raw(price, "regularMarketVolume"),
-    avgVolume:        raw(summary, "averageVolume") ?? raw(summary, "averageDailyVolume10Day"),
-    marketCap:        raw(price, "marketCap") ?? raw(summary, "marketCap"),
-    trailingPE:       raw(summary, "trailingPE"),
-    forwardPE:        raw(summary, "forwardPE"),
-    priceToBook:      raw(keyStats, "priceToBook"),
-    trailingEps:      raw(keyStats, "trailingEps"),
-    forwardEps:       raw(keyStats, "forwardEps"),
-    fiftyTwoWeekHigh: raw(summary, "fiftyTwoWeekHigh"),
-    fiftyTwoWeekLow:  raw(summary, "fiftyTwoWeekLow"),
-    beta:             raw(summary, "beta") ?? raw(keyStats, "beta"),
-    dividendRate:     raw(summary, "dividendRate") ?? raw(summary, "trailingAnnualDividendRate"),
-    dividendYield:    raw(summary, "dividendYield") ?? raw(summary, "trailingAnnualDividendYield"),
+    currentPrice:     n(price.regularMarketPrice)          ?? 0,
+    dayChange:        n(price.regularMarketChange)         ?? 0,
+    dayChangePercent: (n(price.regularMarketChangePercent) ?? 0) * 100,
+    dayHigh:          n(price.regularMarketDayHigh),
+    dayLow:           n(price.regularMarketDayLow),
+    volume:           n(price.regularMarketVolume),
+    avgVolume:        n(summary.averageVolume) ?? n(summary.averageDailyVolume10Day),
+    marketCap:        n(price.marketCap) ?? n(summary.marketCap),
+    trailingPE:       n(summary.trailingPE),
+    forwardPE:        n(summary.forwardPE),
+    priceToBook:      n(keyStats.priceToBook),
+    trailingEps:      n(keyStats.trailingEps),
+    forwardEps:       n(keyStats.forwardEps),
+    fiftyTwoWeekHigh: n(summary.fiftyTwoWeekHigh),
+    fiftyTwoWeekLow:  n(summary.fiftyTwoWeekLow),
+    beta:             n(summary.beta) ?? n(keyStats.beta),
+    dividendRate:     n(summary.dividendRate) ?? n(summary.trailingAnnualDividendRate),
+    dividendYield:    n(summary.dividendYield) ?? n(summary.trailingAnnualDividendYield),
     recommendationKey:    financial.recommendationKey ?? null,
-    targetMeanPrice:      raw(financial, "targetMeanPrice"),
-    targetHighPrice:      raw(financial, "targetHighPrice"),
-    targetLowPrice:       raw(financial, "targetLowPrice"),
-    numberOfAnalysts:     raw(financial, "numberOfAnalystOpinions"),
+    targetMeanPrice:      n(financial.targetMeanPrice),
+    targetHighPrice:      n(financial.targetHighPrice),
+    targetLowPrice:       n(financial.targetLowPrice),
+    numberOfAnalysts:     n(financial.numberOfAnalystOpinions),
     strongBuy:  trend.strongBuy  ?? 0,
     buy:        trend.buy        ?? 0,
     hold:       trend.hold       ?? 0,
@@ -431,7 +428,7 @@ export type YahooNewsItem = {
 }
 
 export async function getPositionNews(symbol: string, count = 8): Promise<YahooNewsItem[]> {
-  const url = `${BASE_V10}/search?q=${encodeURIComponent(symbol)}&quotesCount=0&newsCount=${count}&enableFuzzyQuery=false`
+  const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(symbol)}&quotesCount=0&newsCount=${count}&enableFuzzyQuery=false`
 
   let res: Response
   try {
