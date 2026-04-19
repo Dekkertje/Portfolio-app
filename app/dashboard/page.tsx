@@ -260,12 +260,12 @@ export default function DashboardPage() {
       // Add manual positions to grouped
       if (manualPositions && manualPositions.length > 0) {
         for (const mp of manualPositions) {
-          const key = `${mp.product_name}__${mp.isin || mp.yahoo_symbol}`
+          const key = `${mp.product_name}__${mp.isin || ""}`
 
           if (!grouped[key]) {
             grouped[key] = {
               product: mp.product_name,
-              isin: mp.isin || mp.yahoo_symbol,
+              isin: mp.isin || null,
               quantity: mp.quantity,
               avgPrice: mp.average_price,
               invested: mp.quantity * mp.average_price,
