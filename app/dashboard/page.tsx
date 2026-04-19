@@ -727,12 +727,36 @@ export default function DashboardPage() {
   // Performance data for line chart - based on selected period
   // Use real historical snapshot data if available
   const [performanceData, setPerformanceData] = useState<PerfPoint[]>([])
+  const [isIntraday, setIsIntraday] = useState(false)
 
   // Toggle between portfolio-value view and P&L view
   const [chartMode, setChartMode] = useState<ChartMode>("value")
 
   useEffect(() => {
     async function loadPerformanceData() {
+      // ── 1D intraday: fetch 5-minute portfolio values ─────────────────────
+      if (selectedPeriod === '1D') {
+        setIsIntraday(true)
+        if (!portfolioId) return
+        try {
+          const res  = await fetch(`/api/portfolio-intraday?portfolio_id=${portfolioId}`)
+          const data = await res.json()
+          const pts: PerfPoint[] = (data.points ?? []).map((p: { time: string; value: number }) => ({
+            date:     p.time,
+            isoDate:  p.time,   // re-used as X-axis key in intraday mode
+            value:    p.value,
+            invested: metrics.totalCost,
+            pnl:      p.value - metrics.totalCost,
+          }))
+          setPerformanceData(pts.length > 0 ? pts : [])
+        } catch {
+          setPerformanceData([])
+        }
+        return
+      }
+
+      setIsIntraday(false)
+
       // Always generate simulated data as fallback first
       const simulatedData: PerfPoint[] = generatePerformanceData(
         metrics.totalCost,
@@ -1208,7 +1232,8 @@ export default function DashboardPage() {
               <PerformanceChart
                 data={performanceData}
                 mode={chartMode}
-                costBasis={chartMode === "value" ? metrics.totalCost : undefined}
+                costBasis={chartMode === "value" && !isIntraday ? metrics.totalCost : undefined}
+                intraday={isIntraday}
               />
               {historyLoading && (
                 <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/70 dark:bg-[#0d1829]/80 backdrop-blur-sm">

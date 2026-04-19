@@ -30,6 +30,7 @@ type PerformanceChartProps = {
   data: PerformanceData[]
   mode?: ChartMode
   costBasis?: number   // flat reference line in value-mode
+  intraday?: boolean   // true when showing 1D intraday data (X-axis = time strings)
 }
 
 const EUR = (v: number) =>
@@ -42,12 +43,9 @@ const sign = (v: number) => (v > 0 ? "+" : "")
 function fmtLabel(label: string): string {
   if (/^\d{4}-\d{2}-\d{2}$/.test(label)) {
     const d = new Date(label)
-    const day   = d.getDate()
-    const month = d.toLocaleString("nl-NL", { month: "short" })
-    const year  = d.getFullYear()
-    return `${day} ${month} ${year}`
+    return `${d.getDate()} ${d.toLocaleString("nl-NL", { month: "short" })} ${d.getFullYear()}`
   }
-  return label
+  return label  // time string "09:35" returned as-is
 }
 
 function ValueTooltip({ active, payload, label }: any) {
@@ -172,7 +170,7 @@ function selectTicks(data: PerformanceData[], n = 6): string[] {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function PerformanceChart({ data, mode = "value", costBasis }: PerformanceChartProps) {
+export function PerformanceChart({ data, mode = "value", costBasis, intraday = false }: PerformanceChartProps) {
   const { theme } = useTheme()
   const isDark = theme === "dark"
 
@@ -187,8 +185,20 @@ export function PerformanceChart({ data, mode = "value", costBasis }: Performanc
   const gridColor    = isDark ? "#334155" : "#e2e8f0"
   const axisColor    = isDark ? "#94a3b8" : "#64748b"
   const lastPoint    = data[data.length - 1]
-  const tickFormatter = useMemo(() => buildTickFormatter(data), [data])
-  const xTicks        = useMemo(() => selectTicks(data), [data])
+
+  // For intraday, X-axis uses the "date" field (HH:MM time string); no ISO-date ticker logic needed
+  const xAxisKey   = intraday ? "date" : "isoDate"
+  const tickFormatter = useMemo(
+    () => intraday ? (v: string) => v : buildTickFormatter(data),
+    [data, intraday]
+  )
+  const xTicks = useMemo(() => {
+    if (intraday) {
+      const step = Math.max(1, Math.floor(data.length / 6))
+      return data.filter((_, i) => i % step === 0 || i === data.length - 1).map(d => d.date)
+    }
+    return selectTicks(data)
+  }, [data, intraday])
 
   // ── P&L mode ─────────────────────────────────────────────────────────────────
   if (mode === "pnl") {
@@ -221,7 +231,7 @@ export function PerformanceChart({ data, mode = "value", costBasis }: Performanc
             <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
 
             <XAxis
-              dataKey="isoDate"
+              dataKey={xAxisKey}
               ticks={xTicks}
               tickFormatter={tickFormatter}
               stroke={axisColor}
