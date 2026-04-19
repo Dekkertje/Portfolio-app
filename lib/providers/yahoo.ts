@@ -269,6 +269,191 @@ export async function searchSymbol(query: string): Promise<YahooSearchResult[]> 
     }))
 }
 
+// ─── Historical chart data ────────────────────────────────────────────────────
+
+export type YahooChartPoint = {
+  date:  string   // YYYY-MM-DD
+  price: number
+}
+
+export type YahooChartRange = "1wk" | "1mo" | "3mo" | "6mo" | "1y" | "5y"
+
+/**
+ * Fetch daily closing prices for a symbol over a given range.
+ * Used by the position detail chart.
+ */
+export async function getHistoricalChart(
+  symbol: string,
+  range: YahooChartRange = "1y"
+): Promise<YahooChartPoint[]> {
+  const interval = range === "1wk" ? "1d" : range === "1mo" ? "1d" : "1d"
+  const url = `${BASE_V8}/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`
+
+  let res: Response
+  try {
+    res = await fetchWithRetry(url)
+  } catch {
+    return []
+  }
+
+  let json: unknown
+  try { json = await res.json() } catch { return [] }
+
+  const result    = (json as any)?.chart?.result?.[0]
+  const timestamps: number[] = result?.timestamp ?? []
+  const closes: number[]     = result?.indicators?.quote?.[0]?.close ?? []
+
+  return timestamps
+    .map((ts, i) => ({
+      date:  new Date(ts * 1000).toISOString().split("T")[0],
+      price: closes[i] ?? null,
+    }))
+    .filter(p => p.price !== null && p.price > 0) as YahooChartPoint[]
+}
+
+// ─── Detailed quote summary ───────────────────────────────────────────────────
+
+export type YahooDetailedMetrics = {
+  name:            string
+  exchange:        string
+  currency:        string
+  quoteType:       string
+  // Price
+  currentPrice:    number
+  dayChange:       number
+  dayChangePercent: number
+  dayHigh:         number | null
+  dayLow:          number | null
+  volume:          number | null
+  avgVolume:       number | null
+  // Valuation
+  marketCap:       number | null
+  trailingPE:      number | null
+  forwardPE:       number | null
+  priceToBook:     number | null
+  // Earnings
+  trailingEps:     number | null
+  forwardEps:      number | null
+  // Range
+  fiftyTwoWeekHigh: number | null
+  fiftyTwoWeekLow:  number | null
+  // Risk
+  beta:            number | null
+  // Dividend
+  dividendRate:    number | null
+  dividendYield:   number | null
+  // Analyst consensus
+  recommendationKey:    string | null   // "strong_buy" | "buy" | "hold" | "underperform" | "sell"
+  targetMeanPrice:      number | null
+  targetHighPrice:      number | null
+  targetLowPrice:       number | null
+  numberOfAnalysts:     number | null
+  // Analyst count breakdown
+  strongBuy:  number
+  buy:        number
+  hold:       number
+  sell:       number
+  strongSell: number
+}
+
+export async function getDetailedMetrics(symbol: string): Promise<YahooDetailedMetrics | null> {
+  const modules = "price,summaryDetail,defaultKeyStatistics,financialData,recommendationTrend"
+  const url = `${BASE_V10}/quoteSummary/${encodeURIComponent(symbol)}?modules=${modules}`
+
+  let res: Response
+  try {
+    res = await fetchWithRetry(url)
+  } catch {
+    return null
+  }
+
+  let json: unknown
+  try { json = await res.json() } catch { return null }
+
+  const result    = (json as any)?.quoteSummary?.result?.[0]
+  if (!result) return null
+
+  const price     = result.price          ?? {}
+  const summary   = result.summaryDetail  ?? {}
+  const keyStats  = result.defaultKeyStatistics ?? {}
+  const financial = result.financialData  ?? {}
+  const trend     = result.recommendationTrend?.trend?.[0] ?? {}  // most recent period
+
+  const raw = (obj: any, field: string): number | null => {
+    const v = obj?.[field]?.raw ?? obj?.[field]
+    return typeof v === "number" ? v : null
+  }
+
+  return {
+    name:             price.longName ?? price.shortName ?? symbol,
+    exchange:         price.exchangeName ?? price.exchange ?? "",
+    currency:         price.currency ?? "USD",
+    quoteType:        price.quoteType ?? "",
+    currentPrice:     raw(price, "regularMarketPrice") ?? 0,
+    dayChange:        raw(price, "regularMarketChange") ?? 0,
+    dayChangePercent: (raw(price, "regularMarketChangePercent") ?? 0) * 100,
+    dayHigh:          raw(price, "regularMarketDayHigh"),
+    dayLow:           raw(price, "regularMarketDayLow"),
+    volume:           raw(price, "regularMarketVolume"),
+    avgVolume:        raw(summary, "averageVolume") ?? raw(summary, "averageDailyVolume10Day"),
+    marketCap:        raw(price, "marketCap") ?? raw(summary, "marketCap"),
+    trailingPE:       raw(summary, "trailingPE"),
+    forwardPE:        raw(summary, "forwardPE"),
+    priceToBook:      raw(keyStats, "priceToBook"),
+    trailingEps:      raw(keyStats, "trailingEps"),
+    forwardEps:       raw(keyStats, "forwardEps"),
+    fiftyTwoWeekHigh: raw(summary, "fiftyTwoWeekHigh"),
+    fiftyTwoWeekLow:  raw(summary, "fiftyTwoWeekLow"),
+    beta:             raw(summary, "beta") ?? raw(keyStats, "beta"),
+    dividendRate:     raw(summary, "dividendRate") ?? raw(summary, "trailingAnnualDividendRate"),
+    dividendYield:    raw(summary, "dividendYield") ?? raw(summary, "trailingAnnualDividendYield"),
+    recommendationKey:    financial.recommendationKey ?? null,
+    targetMeanPrice:      raw(financial, "targetMeanPrice"),
+    targetHighPrice:      raw(financial, "targetHighPrice"),
+    targetLowPrice:       raw(financial, "targetLowPrice"),
+    numberOfAnalysts:     raw(financial, "numberOfAnalystOpinions"),
+    strongBuy:  trend.strongBuy  ?? 0,
+    buy:        trend.buy        ?? 0,
+    hold:       trend.hold       ?? 0,
+    sell:       trend.sell       ?? 0,
+    strongSell: trend.strongSell ?? 0,
+  }
+}
+
+// ─── News ─────────────────────────────────────────────────────────────────────
+
+export type YahooNewsItem = {
+  title:     string
+  publisher: string
+  link:      string
+  publishedAt: string    // ISO date string
+  thumbnail: string | null
+}
+
+export async function getPositionNews(symbol: string, count = 8): Promise<YahooNewsItem[]> {
+  const url = `${BASE_V10}/search?q=${encodeURIComponent(symbol)}&quotesCount=0&newsCount=${count}&enableFuzzyQuery=false`
+
+  let res: Response
+  try {
+    res = await fetchWithRetry(url)
+  } catch {
+    return []
+  }
+
+  let json: unknown
+  try { json = await res.json() } catch { return [] }
+
+  const articles: any[] = (json as any)?.news ?? []
+
+  return articles.map(a => ({
+    title:       a.title ?? "",
+    publisher:   a.publisher ?? "",
+    link:        a.link ?? "",
+    publishedAt: new Date((a.providerPublishTime ?? 0) * 1000).toISOString(),
+    thumbnail:   a.thumbnail?.resolutions?.[0]?.url ?? null,
+  }))
+}
+
 // ─── ETF pence correction ─────────────────────────────────────────────────────
 
 /**

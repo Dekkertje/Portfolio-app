@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { TrendingUp, TrendingDown, ArrowUpDown, ArrowUp, ArrowDown, Trash2 } from "lucide-react"
 
 type Position = {
@@ -47,6 +48,7 @@ function formatNumber(value: number) {
 }
 
 export function PositionsTable({ positions, onDeletePosition }: PositionsTableProps) {
+  const router = useRouter()
   const [sortField, setSortField] = useState<SortField>('currentValue')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
 
@@ -206,8 +208,27 @@ export function PositionsTable({ positions, onDeletePosition }: PositionsTablePr
                 : 0
               const isProfit = totalPnL >= 0
 
+              const handleRowClick = (e: React.MouseEvent) => {
+                // Don't navigate when clicking the delete button
+                if ((e.target as HTMLElement).closest("button")) return
+                const qs = new URLSearchParams({
+                  product: position.product,
+                  qty:     String(position.quantity),
+                  avgPrice: String(position.avgPrice),
+                  value:   String(position.currentValue),
+                  pnl:     String(totalPnL),
+                })
+                if (position.isin)     qs.set("isin",     position.isin)
+                if (position.isCrypto) qs.set("isCrypto", "true")
+                router.push(`/dashboard/position?${qs}`)
+              }
+
               return (
-                <tr key={index} className="transition-colors hover:bg-slate-50 dark:hover:bg-[#1a2744]/30">
+                <tr
+                  key={index}
+                  onClick={handleRowClick}
+                  className="transition-colors hover:bg-slate-50 dark:hover:bg-[#1a2744]/30 cursor-pointer"
+                >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{position.product}</div>
