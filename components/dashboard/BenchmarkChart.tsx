@@ -66,11 +66,17 @@ export function BenchmarkChart({ data, benchmarkType, loading }: BenchmarkChartP
     .filter((_, i) => i % step === 0 || i === data.length - 1)
     .map(d => d.isoDate ?? d.date)
 
+  const firstYear = data[0]?.isoDate ? new Date(data[0].isoDate).getFullYear() : null
+  const lastYear  = data[data.length - 1]?.isoDate ? new Date(data[data.length - 1].isoDate!).getFullYear() : null
+  const multiYear = firstYear !== null && lastYear !== null && lastYear > firstYear
+
   function formatXTick(v: string): string {
-    // v is isoDate ("2025-04-16") or display date — only parse ISO
     if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
       const d = new Date(v)
-      return `${d.getDate()} ${d.toLocaleString("nl-NL", { month: "short" })}`
+      const mon = d.toLocaleString("nl-NL", { month: "short" })
+      return multiYear
+        ? `${mon} '${String(d.getFullYear()).slice(2)}`
+        : `${d.getDate()} ${mon}`
     }
     return v
   }

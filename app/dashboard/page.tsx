@@ -945,18 +945,48 @@ export default function DashboardPage() {
   }, [performanceData])
 
   // Benchmark chart data — merges real portfolio performance with real benchmark prices.
-  // Both series start at 0% at the first date they share in the selected period.
+  // Both series start at 0% at the first date they share in the benchmark period.
+  // Deliberately independent of performanceData so the benchmark period filter works.
   const benchmarkData = useMemo(() => {
-    if (performanceData.length < 2) return []
     if (!benchmarkHistory || benchmarkHistory.length < 2) return []
 
-    // ── Use isoDate for date comparisons ─────────────────────────────────────
-    // benchmarkHistory uses ISO dates; performanceData has isoDate field.
+    const benchFirst = benchmarkHistory[0].date
+    const benchLast  = benchmarkHistory[benchmarkHistory.length - 1].date
+
+    // Build portfolio point series for the benchmark period independently
+    // of the main chart's performanceData (which uses a different period).
+    const portfolioPoints: { date: string; value: number }[] = []
+
+    if (portfolioHistory && portfolioHistory.length > 0) {
+      for (const h of portfolioHistory) {
+        if (h.date >= benchFirst && h.date <= benchLast) {
+          portfolioPoints.push({ date: h.date, value: h.value })
+        }
+      }
+    }
+
+    // Fill gaps with saved snapshots
+    const snapshotDates = new Set(portfolioPoints.map(p => p.date))
+    for (const s of allSnapshots) {
+      if (s.snapshot_date >= benchFirst && s.snapshot_date <= benchLast && !snapshotDates.has(s.snapshot_date)) {
+        portfolioPoints.push({ date: s.snapshot_date, value: Number(s.total_value) })
+      }
+    }
+    portfolioPoints.sort((a, b) => a.date.localeCompare(b.date))
+
+    // Add today's live value if it falls within the benchmark range
+    const today = new Date().toISOString().split("T")[0]
+    if (today >= benchFirst && !portfolioPoints.some(p => p.date === today) && metrics.totalValue > 0) {
+      portfolioPoints.push({ date: today, value: metrics.totalValue })
+    }
+
+    if (portfolioPoints.length < 2) return []
+
+    // Build benchmark lookup with forward-fill for weekends/holidays
     const benchLookup: Record<string, number> = {}
     for (const b of benchmarkHistory) benchLookup[b.date] = b.value
     const sortedBenchDates = benchmarkHistory.map(b => b.date).sort()
 
-    // Helper: find the benchmark value for the closest date on or before isoDate
     function benchValueAt(iso: string): number | null {
       for (let i = sortedBenchDates.length - 1; i >= 0; i--) {
         if (sortedBenchDates[i] <= iso) return benchLookup[sortedBenchDates[i]] ?? null
@@ -964,30 +994,21 @@ export default function DashboardPage() {
       return null
     }
 
-    // ── Build aligned series using ISO dates ──────────────────────────────────
-    // Only include portfolio points that have an isoDate (can be aligned to benchmark)
-    const aligned = performanceData
-      .filter(d => d.isoDate)
-      .map(d => ({
-        isoDate:       d.isoDate!,
-        displayDate:   d.date,
-        portfolioValue: d.value,
-        benchPercent:  benchValueAt(d.isoDate!),
-      }))
-      .filter(d => d.benchPercent !== null)
+    const basePortfolio = portfolioPoints[0].value
 
-    if (aligned.length < 2) return []
-
-    // ── Normalise portfolio to 0% at the first aligned point ─────────────────
-    const basePortfolio = aligned[0].portfolioValue
-
-    return aligned.map(d => ({
-      date:      d.displayDate,
-      isoDate:   d.isoDate,
-      portfolio: basePortfolio > 0 ? ((d.portfolioValue / basePortfolio) - 1) * 100 : 0,
-      benchmark: d.benchPercent!,
-    }))
-  }, [performanceData, benchmarkHistory])
+    return portfolioPoints
+      .map(p => {
+        const bench = benchValueAt(p.date)
+        if (bench === null) return null
+        return {
+          date:      new Date(p.date).toLocaleDateString("nl-NL", { day: "numeric", month: "short" }),
+          isoDate:   p.date,
+          portfolio: basePortfolio > 0 ? ((p.value / basePortfolio) - 1) * 100 : 0,
+          benchmark: bench,
+        }
+      })
+      .filter((d): d is NonNullable<typeof d> => d !== null)
+  }, [portfolioHistory, allSnapshots, benchmarkHistory, metrics.totalValue])
 
   // Dividend metrics
   const dividendMetrics = useMemo(() => {
