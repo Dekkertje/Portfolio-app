@@ -9,10 +9,19 @@ import { getFXRate } from "@/lib/providers/fx"
 export async function GET() {
   const supabase = createServiceSupabaseClient()
 
-  // 1. Find all transactions for crypto positions
-  const { data: transactions } = await supabase
+  // 1. Find all transactions
+  const { data: transactions, error: txError } = await supabase
     .from("transactions")
     .select("product, isin")
+
+  // Show all unique products so we can see what's actually in the DB
+  const allUnique = new Map<string, string | null>()
+  for (const t of transactions ?? []) {
+    allUnique.set(t.product, t.isin)
+  }
+  const allProducts = Array.from(allUnique.entries()).map(([product, isin]) => ({
+    product, isin, detectedAsCrypto: isCrypto(product, isin)
+  }))
 
   const cryptoTransactions = (transactions ?? []).filter(t =>
     isCrypto(t.product, t.isin)
@@ -89,5 +98,5 @@ export async function GET() {
     }
   }))
 
-  return NextResponse.json({ usdToEur, results })
+  return NextResponse.json({ usdToEur, txError: txError?.message ?? null, allProducts, results })
 }
