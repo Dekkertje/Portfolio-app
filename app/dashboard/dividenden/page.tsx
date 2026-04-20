@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useTheme } from "@/contexts/ThemeContext"
 import { supabase } from "@/lib/supabase/client"
 import { DashboardLayout } from "@/components/layout/DashboardLayout"
 import {
@@ -81,7 +82,10 @@ function StatCard({ label, value, sub, icon: Icon, iconBg, iconColor, children }
 }
 
 function MonthlyChart({ received, thisYear }: { received: ReceivedDividend[]; thisYear: number }) {
+  const { theme } = useTheme()
+  const dark = theme !== "light"
   const currentMonth = new Date().getMonth()
+
   const data = MONTHS_NL.map((name, i) => ({
     name,
     amount: received
@@ -93,6 +97,12 @@ function MonthlyChart({ received, thisYear }: { received: ReceivedDividend[]; th
   const hasData = data.some(d => d.amount > 0)
   if (!hasData) return null
 
+  const tickColor     = dark ? "#94a3b8" : "#64748b"
+  const tooltipBg     = dark ? "#0d1829" : "#ffffff"
+  const tooltipBorder = dark ? "#1a2744" : "#e2e8f0"
+  const tooltipText   = dark ? "#f1f5f9" : "#1e293b"
+  const emptyBar      = dark ? "#1e293b" : "#f1f5f9"
+
   return (
     <div className="rounded-xl border border-slate-200 dark:border-[#1a2744] bg-white dark:bg-[#0d1829] p-5">
       <div className="flex items-center gap-2 mb-4">
@@ -101,17 +111,18 @@ function MonthlyChart({ received, thisYear }: { received: ReceivedDividend[]; th
       </div>
       <ResponsiveContainer width="100%" height={140}>
         <BarChart data={data} barSize={20} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-          <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} tickFormatter={v => v === 0 ? "" : `€${v}`} />
+          <XAxis dataKey="name" tick={{ fontSize: 11, fill: tickColor }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fontSize: 11, fill: tickColor }} axisLine={false} tickLine={false} tickFormatter={v => v === 0 ? "" : `€${v}`} />
           <Tooltip
             formatter={(v) => [EUR(Number(v ?? 0)), "Dividend"]}
-            contentStyle={{ background: "#0d1829", border: "1px solid #1a2744", borderRadius: 8, fontSize: 12 }}
-            labelStyle={{ color: "#94a3b8" }}
-            cursor={{ fill: "rgba(255,255,255,0.04)" }}
+            contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, fontSize: 12, color: tooltipText }}
+            labelStyle={{ color: tickColor, fontWeight: 600 }}
+            itemStyle={{ color: tooltipText }}
+            cursor={{ fill: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)" }}
           />
           <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
             {data.map((entry, i) => (
-              <Cell key={i} fill={entry.isCurrent ? "#84cc16" : entry.amount > 0 ? "#4ade80" : "#1e293b"} />
+              <Cell key={i} fill={entry.isCurrent ? "#84cc16" : entry.amount > 0 ? "#4ade80" : emptyBar} />
             ))}
           </Bar>
         </BarChart>
