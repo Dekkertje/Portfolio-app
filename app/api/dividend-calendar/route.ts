@@ -184,44 +184,55 @@ export async function GET(req: NextRequest) {
     return a.exDate.localeCompare(b.exDate)
   })
 
-  // ── Fetch historical dividends from Yahoo and match against holding timeline ─
-  // Find earliest transaction date to limit how far back we look
-  const allDates = (transactions ?? []).map(t => t.trade_date ?? "").filter(Boolean).sort()
+  // ── Fetch historical dividends via Yahoo Finance chart API ───────────────────
+  const allDates    = (transactions ?? []).map(t => t.trade_date ?? "").filter(Boolean).sort()
   const earliestDate = allDates[0] ?? "2020-01-01"
+  const period1 = Math.floor(new Date(earliestDate).getTime() / 1000)
+  const period2 = Math.floor(Date.now() / 1000)
+
+  async function fetchDividendEvents(symbol: string): Promise<Array<{ date: string; amount: number }>> {
+    try {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}` +
+        `?events=div&period1=${period1}&period2=${period2}&interval=1mo`
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+      })
+      if (!res.ok) return []
+      const json = await res.json()
+      const divMap = json?.chart?.result?.[0]?.events?.dividends ?? {}
+      return Object.values(divMap).map((d: any) => ({
+        date:   new Date(d.date * 1000).toISOString().split("T")[0],
+        amount: d.amount as number,
+      }))
+    } catch { return [] }
+  }
 
   const receivedNested: ReceivedDividend[][] = await Promise.all(
     resolved.map(async r => {
-        try {
-          const history: any[] = await yf2.historical(r.symbol, {
-            period1: earliestDate,
-            period2: new Date().toISOString().split("T")[0],
-            events:  "div",
+      try {
+        const divEvents = await fetchDividendEvents(r.symbol)
+        const currency: string =
+          upcoming.find(u => u.symbol === r.symbol)?.currency ?? "USD"
+        const fx = fxRate(currency)
+
+        return divEvents
+          .map((d): ReceivedDividend | null => {
+            const shares = qtyOnDate(r.posKey, d.date)
+            if (shares <= 0) return null
+            const totalEur = Math.round(shares * d.amount * fx * 100) / 100
+            return {
+              product:        r.product,
+              symbol:         r.symbol,
+              date:           d.date,
+              sharesHeld:     shares,
+              amountPerShare: d.amount,
+              totalEur,
+              year:           new Date(d.date).getFullYear(),
+            }
           })
-
-          const currency: string =
-            upcoming.find(u => u.symbol === r.symbol)?.currency ?? "USD"
-          const fx = fxRate(currency)
-
-          return (history ?? [])
-            .filter((h: any) => h.date instanceof Date && typeof h.dividends === "number" && h.dividends > 0)
-            .map((h: any): ReceivedDividend | null => {
-              const exDateStr = h.date.toISOString().split("T")[0]
-              const shares    = qtyOnDate(r.posKey, exDateStr)
-              if (shares <= 0) return null
-              const totalEur  = Math.round(shares * h.dividends * fx * 100) / 100
-              return {
-                product:        r.product,
-                symbol:         r.symbol,
-                date:           exDateStr,
-                sharesHeld:     shares,
-                amountPerShare: h.dividends,
-                totalEur,
-                year:           h.date.getFullYear(),
-              }
-            })
-            .filter((d: ReceivedDividend | null): d is ReceivedDividend => d !== null)
-        } catch { return [] as ReceivedDividend[] }
-      })
+          .filter((d): d is ReceivedDividend => d !== null)
+      } catch { return [] as ReceivedDividend[] }
+    })
   )
   const received: ReceivedDividend[] = receivedNested.flat().sort((a, b) => b.date.localeCompare(a.date))
 

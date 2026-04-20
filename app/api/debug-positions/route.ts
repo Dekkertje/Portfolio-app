@@ -11,40 +11,32 @@ export async function GET(req: NextRequest) {
   const yf2Pkg = require("yahoo-finance2")
   const yf2 = new yf2Pkg.default({ suppressNotices: ["yahooSurvey"] })
 
-  let historyRaw: any[] = []
-  let historyError: string | null = null
+  // Test chart API for dividend events
+  let chartDividends: any[] = []
+  let chartError: string | null = null
   try {
-    historyRaw = await yf2.historical(testSymbol, {
-      period1: "2022-01-01",
-      period2: new Date().toISOString().split("T")[0],
-      events:  "div",
-    })
+    const p1 = Math.floor(new Date("2022-01-01").getTime() / 1000)
+    const p2 = Math.floor(Date.now() / 1000)
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(testSymbol)}?events=div&period1=${p1}&period2=${p2}&interval=1mo`
+    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" } })
+    const json = await res.json()
+    const divMap = json?.chart?.result?.[0]?.events?.dividends ?? {}
+    chartDividends = Object.values(divMap).map((d: any) => ({
+      date:   new Date(d.date * 1000).toISOString().split("T")[0],
+      amount: d.amount,
+    }))
   } catch (e: any) {
-    historyError = e.message
+    chartError = e.message
   }
 
-  // Show first 5 items and any with dividends > 0
-  const first5  = historyRaw.slice(0, 5)
-  const divRows = historyRaw.filter((h: any) => h.dividends && h.dividends > 0).slice(0, 10)
-  const allKeys = first5.length > 0 ? Object.keys(first5[0]) : []
-
-  // Also try without events filter — normal history, look for dividend field
-  let normalFirst3: any[] = []
-  try {
-    const normal = await yf2.historical(testSymbol, {
-      period1: "2024-01-01",
-      period2: "2024-06-01",
-    })
-    normalFirst3 = normal.slice(0, 5).map((h: any) => ({
-      date:      h.date,
-      close:     h.close,
-      dividends: h.dividends,
-      keys:      Object.keys(h),
-    }))
-  } catch { /* ignore */ }
+  const historyError = null
+  const first5: any[] = []
+  const divRows = chartDividends
+  const allKeys: string[] = []
+  const normalFirst3: any[] = []
 
   if (!portfolioId) {
-    return NextResponse.json({ testSymbol, historyError, totalRows: historyRaw.length, first5, divRows, allKeys, normalFirst3 })
+    return NextResponse.json({ testSymbol, chartError, chartDividends, first5, divRows, allKeys, normalFirst3 })
   }
 
   const supabase = createServiceSupabaseClient()
@@ -62,12 +54,8 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     testSymbol,
-    historyError,
-    totalHistoryRows: historyRaw.length,
-    allKeys,
-    first5,
-    divRows,
-    normalFirst3,
+    chartError,
+    chartDividends,
     typeCounts,
     totalTransactions: txs?.length ?? 0,
   })
