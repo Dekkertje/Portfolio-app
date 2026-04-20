@@ -159,7 +159,10 @@ function YearSection({ year, rows, allTimeTotal }: { year: number; rows: Receive
             <tbody className="divide-y divide-slate-100 dark:divide-[#1a2744]">
               {rows.map((r, i) => (
                 <tr key={i} className="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
-                  <td className="px-5 py-3 font-medium text-slate-900 dark:text-white">{r.product}</td>
+                  <td className="px-5 py-3">
+                    <div className="font-medium text-slate-900 dark:text-white">{r.product}</div>
+                    <div className="text-xs text-slate-400 mt-0.5">{r.sharesHeld} aandelen × {EUR(r.amountPerShare)}</div>
+                  </td>
                   <td className="px-5 py-3 text-slate-500 dark:text-slate-400">{r.date ? fmtDate(r.date) : "—"}</td>
                   <td className="px-5 py-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">+{EUR(r.totalEur)}</td>
                 </tr>
