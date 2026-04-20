@@ -135,6 +135,8 @@ export async function GET(req: NextRequest) {
   const yf2 = new yf2Pkg.default({ suppressNotices: ["yahooSurvey"] })
 
   // ── Fetch upcoming ex-dividend dates ─────────────────────────────────────────
+  const symbolCurrency = new Map<string, string>()  // symbol → native currency
+
   const upcoming: DividendEntry[] = (
     await Promise.all(
       resolved.map(async r => {
@@ -149,6 +151,7 @@ export async function GET(req: NextRequest) {
           const price    = result?.price                ?? {}
 
           const currency: string = price.currency ?? "USD"
+          symbolCurrency.set(r.symbol, currency)   // store for received calc
           const fx = fxRate(currency)
 
           const exDate = summary.exDividendDate instanceof Date
@@ -211,8 +214,7 @@ export async function GET(req: NextRequest) {
     resolved.map(async r => {
       try {
         const divEvents = await fetchDividendEvents(r.symbol)
-        const currency: string =
-          upcoming.find(u => u.symbol === r.symbol)?.currency ?? "USD"
+        const currency: string = symbolCurrency.get(r.symbol) ?? "USD"
         const fx = fxRate(currency)
 
         return divEvents
