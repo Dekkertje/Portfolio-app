@@ -46,7 +46,12 @@ export default function AuthCallback() {
       if (session) {
         router.replace("/dashboard")
       } else {
-        router.replace("/login?error=no_token")
+        // Debug: report what was in the URL so we can diagnose the flow
+        const hasHash   = window.location.hash.length > 1
+        const hashKeys  = window.location.hash.substring(1).split("&").map(p => p.split("=")[0]).join(",")
+        const hasSearch = window.location.search.length > 1
+        const searchKeys = window.location.search.substring(1).split("&").map(p => p.split("=")[0]).join(",")
+        router.replace(`/login?error=no_token__hash=${hasHash}(${hashKeys})__search=${hasSearch}(${searchKeys})`)
       }
     }
 
