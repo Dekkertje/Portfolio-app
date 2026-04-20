@@ -96,11 +96,10 @@ export default function DividendenPage() {
   }, [])
 
   const payersCount    = upcoming.filter(e => e.exDate).length
-  const ytdTotal       = received.reduce((s, r) => s + r.totalEur, 0)
+  const ytdTotal       = received.filter(r => r.year === new Date().getFullYear()).reduce((s, r) => s + r.totalEur, 0)
+  const allTimeTotal   = received.reduce((s, r) => s + r.totalEur, 0)
   const estAnnualTotal = upcoming.reduce((s, e) => {
     if (!e.annualRate || !e.amountPerShareEur || !e.estimatedPayout) return s
-    // Estimate full-year payout: estimatedPayout is per-dividend; scale by 4 for quarterly, 1 for annual
-    // We use annualRate / amountPerShare as frequency multiplier
     const freq = e.amountPerShare && e.amountPerShare > 0
       ? Math.round((e.annualRate ?? 0) / e.amountPerShare)
       : 1
@@ -108,6 +107,13 @@ export default function DividendenPage() {
   }, 0)
 
   const thisYear = new Date().getFullYear()
+
+  // Group received by year descending
+  const receivedByYear = received.reduce<Record<number, ReceivedDividend[]>>((acc, r) => {
+    ;(acc[r.year] ??= []).push(r)
+    return acc
+  }, {})
+  const receivedYears = Object.keys(receivedByYear).map(Number).sort((a, b) => b - a)
 
   return (
     <DashboardLayout>
@@ -125,7 +131,7 @@ export default function DividendenPage() {
 
         {/* Stat cards */}
         {!loading && !error && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <StatCard
               label="Geschat jaarinkomen"
               value={estAnnualTotal > 0 ? EUR(estAnnualTotal) : "—"}
@@ -134,7 +140,12 @@ export default function DividendenPage() {
             <StatCard
               label={`Ontvangen ${thisYear}`}
               value={ytdTotal > 0 ? EUR(ytdTotal) : "—"}
-              sub={`${received.length} uitkering${received.length !== 1 ? "en" : ""}`}
+              sub={`${received.filter(r => r.year === thisYear).length} uitkering${received.filter(r => r.year === thisYear).length !== 1 ? "en" : ""}`}
+            />
+            <StatCard
+              label="Totaal ontvangen"
+              value={allTimeTotal > 0 ? EUR(allTimeTotal) : "—"}
+              sub="alle jaren"
             />
             <StatCard
               label="Dividend betalers"
@@ -232,51 +243,49 @@ export default function DividendenPage() {
               )}
             </section>
 
-            {/* Received this year */}
+            {/* Received dividends — all years */}
             <section>
               <h2 className="text-base font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
                 <Euro className="h-4 w-4 text-lime-500" />
-                Ontvangen {thisYear}
+                Ontvangen dividenden
               </h2>
 
               {received.length === 0 ? (
                 <div className="rounded-xl border border-slate-200 dark:border-[#1a2744] bg-white dark:bg-[#0d1829] p-8 text-center text-sm text-slate-400">
-                  Geen dividenden ontvangen in {thisYear} (of nog niet geïmporteerd).
+                  Geen dividenden gevonden (of nog niet geïmporteerd).
                 </div>
               ) : (
-                <div className="rounded-xl border border-slate-200 dark:border-[#1a2744] bg-white dark:bg-[#0d1829] overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-100 dark:border-[#1a2744] text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                        <th className="px-4 py-3 text-left">Positie</th>
-                        <th className="px-4 py-3 text-left">Datum</th>
-                        <th className="px-4 py-3 text-right">Bedrag</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-[#1a2744]">
-                      {received.map((r, i) => (
-                        <tr key={i} className="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
-                          <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">
-                            {r.product}
-                          </td>
-                          <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
-                            {r.date ? fmtDate(r.date) : "—"}
-                          </td>
-                          <td className="px-4 py-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">
-                            +{EUR(r.totalEur)}
-                          </td>
-                        </tr>
-                      ))}
-                      <tr className="border-t-2 border-slate-200 dark:border-[#1a2744] bg-slate-50 dark:bg-white/[0.02]">
-                        <td colSpan={2} className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">
-                          Totaal {thisYear}
-                        </td>
-                        <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                          +{EUR(ytdTotal)}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                <div className="space-y-4">
+                  {receivedYears.map(year => {
+                    const rows = receivedByYear[year]
+                    const yearTotal = rows.reduce((s, r) => s + r.totalEur, 0)
+                    return (
+                      <div key={year} className="rounded-xl border border-slate-200 dark:border-[#1a2744] bg-white dark:bg-[#0d1829] overflow-hidden">
+                        <div className="px-4 py-2.5 bg-slate-50 dark:bg-white/[0.03] border-b border-slate-100 dark:border-[#1a2744] flex items-center justify-between">
+                          <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{year}</span>
+                          <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">+{EUR(yearTotal)}</span>
+                        </div>
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-slate-100 dark:border-[#1a2744] text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                              <th className="px-4 py-3 text-left">Positie</th>
+                              <th className="px-4 py-3 text-left">Datum</th>
+                              <th className="px-4 py-3 text-right">Bedrag</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-[#1a2744]">
+                            {rows.map((r, i) => (
+                              <tr key={i} className="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
+                                <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{r.product}</td>
+                                <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{r.date ? fmtDate(r.date) : "—"}</td>
+                                <td className="px-4 py-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">+{EUR(r.totalEur)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </section>

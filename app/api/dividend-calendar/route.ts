@@ -21,6 +21,7 @@ export type ReceivedDividend = {
   product:  string
   date:     string
   totalEur: number
+  year:     number
 }
 
 // GET /api/dividend-calendar?portfolio_id=...
@@ -52,7 +53,6 @@ export async function GET(req: NextRequest) {
       .select("product, trade_date, total_eur")
       .eq("portfolio_id", portfolioId)
       .ilike("transaction_type", "%dividend%")
-      .gte("trade_date", `${thisYear}-01-01`)
       .order("trade_date", { ascending: false }),
   ])
 
@@ -63,7 +63,11 @@ export async function GET(req: NextRequest) {
   for (const tx of transactions ?? []) {
     const key = `${tx.product}__${tx.isin || ""}`
     const p   = posMap.get(key) ?? { product: tx.product, isin: tx.isin || null, qty: 0 }
-    p.qty += tx.transaction_type === "buy" ? Number(tx.quantity) : -Number(tx.quantity)
+    if (tx.transaction_type === "buy") {
+      p.qty += Number(tx.quantity)
+    } else if (tx.transaction_type === "sell") {
+      p.qty = Math.max(0, p.qty - Number(tx.quantity))
+    }
     posMap.set(key, p)
   }
   for (const mp of manualPositions ?? []) {
@@ -175,6 +179,7 @@ export async function GET(req: NextRequest) {
     product:  tx.product,
     date:     tx.trade_date ?? "",
     totalEur: Math.abs(Number(tx.total_eur)),
+    year:     tx.trade_date ? new Date(tx.trade_date).getFullYear() : thisYear,
   }))
 
   return NextResponse.json({ upcoming, received })
