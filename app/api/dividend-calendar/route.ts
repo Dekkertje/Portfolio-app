@@ -63,10 +63,11 @@ export async function GET(req: NextRequest) {
   for (const tx of transactions ?? []) {
     const key = `${tx.product}__${tx.isin || ""}`
     const p   = posMap.get(key) ?? { product: tx.product, isin: tx.isin || null, qty: 0 }
+    const absQty = Math.abs(Number(tx.quantity))
     if (tx.transaction_type === "buy") {
-      p.qty += Number(tx.quantity)
+      p.qty += absQty
     } else if (tx.transaction_type === "sell") {
-      p.qty = Math.max(0, p.qty - Number(tx.quantity))
+      p.qty = Math.max(0, p.qty - absQty)
     }
     posMap.set(key, p)
   }
