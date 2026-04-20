@@ -56,20 +56,21 @@ export async function GET(req: NextRequest) {
       .order("trade_date", { ascending: false }),
   ])
 
-  // ── Compute net quantities ─────────────────────────────────────────────────
-  type PosMeta = { product: string; isin: string | null; qty: number; yahooSymbol?: string | null }
+  // ── Compute net quantities (order-independent: sum buys and sells separately) ─
+  type PosMeta = { product: string; isin: string | null; qty: number; buys: number; sells: number; yahooSymbol?: string | null }
   const posMap = new Map<string, PosMeta>()
 
   for (const tx of transactions ?? []) {
     const key = `${tx.product}__${tx.isin || ""}`
-    const p   = posMap.get(key) ?? { product: tx.product, isin: tx.isin || null, qty: 0 }
+    const p   = posMap.get(key) ?? { product: tx.product, isin: tx.isin || null, qty: 0, buys: 0, sells: 0 }
     const absQty = Math.abs(Number(tx.quantity))
-    if (tx.transaction_type === "buy") {
-      p.qty += absQty
-    } else if (tx.transaction_type === "sell") {
-      p.qty = Math.max(0, p.qty - absQty)
-    }
+    if (tx.transaction_type === "buy")  p.buys  += absQty
+    if (tx.transaction_type === "sell") p.sells += absQty
     posMap.set(key, p)
+  }
+  // Compute net qty after collecting all buys and sells
+  for (const p of posMap.values()) {
+    p.qty = Math.max(0, p.buys - p.sells)
   }
   for (const mp of manualPositions ?? []) {
     const key = `${mp.product_name}__${mp.isin || ""}`
@@ -77,6 +78,8 @@ export async function GET(req: NextRequest) {
       product:     mp.product_name,
       isin:        mp.isin || null,
       qty:         Number(mp.quantity),
+      buys:        Number(mp.quantity),
+      sells:       0,
       yahooSymbol: mp.yahoo_symbol ?? null,
     })
   }

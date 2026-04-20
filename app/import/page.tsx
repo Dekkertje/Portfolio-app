@@ -275,6 +275,11 @@ export default function ImportPage() {
       const transactionsToInsert = parsedRows
         .map((row) => {
           const localValue = parseEuropeanNumber(row.lokaleWaarde)
+          const quantity   = parseEuropeanNumber(row.aantal)
+          const totalEur   = parseEuropeanNumber(row.totaalEur)
+
+          // Detect dividend: no quantity traded, positive payout, has product+ISIN
+          const isDividend = quantity === 0 && totalEur > 0 && !!row.product && !!row.isin
 
           const tx = {
             portfolio_id: portfolio.id,
@@ -284,21 +289,21 @@ export default function ImportPage() {
             isin: row.isin || null,
             exchange: row.beurs || null,
             venue: row.uitvoeringsplaats || null,
-            quantity: parseEuropeanNumber(row.aantal),
+            quantity,
             price: parseEuropeanNumber(row.koers),
             local_value: localValue,
             value_eur: parseEuropeanNumber(row.waardeEur),
             fx_rate: parseEuropeanNumber(row.wisselkoers),
             autofx_cost: parseEuropeanNumber(row.autoFxKosten),
             transaction_fee: parseEuropeanNumber(row.transactiekosten),
-            total_eur: parseEuropeanNumber(row.totaalEur),
+            total_eur: totalEur,
             order_id: row.orderId || null,
-            transaction_type: detectTransactionType(localValue),
+            transaction_type: isDividend ? "dividend" : detectTransactionType(localValue),
           }
 
           return tx
         })
-        .filter((row) => row.product && row.trade_date && row.quantity !== 0)
+        .filter((row) => row.product && row.trade_date && (row.quantity !== 0 || row.transaction_type === "dividend"))
 
       // Debug: Log first transaction to insert
       if (transactionsToInsert.length > 0) {
