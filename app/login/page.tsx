@@ -17,6 +17,11 @@ export default function LoginPage() {
   const { showToast } = useToast()
 
   useEffect(() => {
+    // Show error from OAuth callback if present in URL
+    const params = new URLSearchParams(window.location.search)
+    const oauthError = params.get("error") || params.get("error_description")
+    if (oauthError) showToast(`Google login fout: ${oauthError}`, "error")
+
     async function checkAuth() {
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
@@ -26,7 +31,7 @@ export default function LoginPage() {
       }
     }
     checkAuth()
-  }, [router])
+  }, [router, showToast])
 
   async function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault()
