@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { supabase } from "@/lib/supabase/client"
+import { supabase, authFetch } from "@/lib/supabase/client"
 import { DashboardLayout } from "@/components/layout/DashboardLayout"
 import { MetricCard } from "@/components/dashboard/MetricCard"
 import { AllocationChart } from "@/components/dashboard/AllocationChart"
@@ -376,7 +376,7 @@ export default function DashboardPage() {
     if (!portfolioId) return
 
     try {
-      const res = await fetch("/api/save-snapshot", {
+      const res = await authFetch("/api/save-snapshot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -402,7 +402,7 @@ export default function DashboardPage() {
     if (!portfolioId) return
 
     try {
-      const res = await fetch(`/api/cash-positions?portfolio_id=${portfolioId}`)
+      const res = await authFetch(`/api/cash-positions?portfolio_id=${portfolioId}`)
       const data = await res.json()
       if (data.positions) {
         setCashPositions(data.positions)
@@ -414,7 +414,7 @@ export default function DashboardPage() {
 
   async function handleDeleteCash(id: string) {
     try {
-      const res = await fetch(`/api/cash-positions?id=${id}`, {
+      const res = await authFetch(`/api/cash-positions?id=${id}`, {
         method: "DELETE",
       })
       if (res.ok) {
@@ -447,7 +447,7 @@ export default function DashboardPage() {
     try {
       if (isManual && manualPositionId) {
         // Delete manual position
-        const res = await fetch(`/api/manual-positions?id=${manualPositionId}`, {
+        const res = await authFetch(`/api/manual-positions?id=${manualPositionId}`, {
           method: "DELETE",
         })
 
@@ -466,7 +466,7 @@ export default function DashboardPage() {
         if (isin) params.append('isin', isin)
         if (product) params.append('product', product)
 
-        const res = await fetch(`/api/transactions?${params.toString()}`, {
+        const res = await authFetch(`/api/transactions?${params.toString()}`, {
           method: "DELETE",
         })
 
@@ -493,7 +493,7 @@ export default function DashboardPage() {
   async function handleRefreshPrices(silent = false) {
     setRefreshing(true)
     try {
-      const res = await fetch("/api/refresh-prices", { method: "POST" })
+      const res = await authFetch("/api/refresh-prices", { method: "POST" })
       const data = await res.json()
 
       if (!res.ok) {

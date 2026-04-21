@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { createRouteHandlerClient } from "@/lib/supabase/server"
 
 export async function GET(request: Request) {
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = createRouteHandlerClient(request)
     const { data: userData, error: authError } = await supabase.auth.getUser()
 
     if (authError || !userData.user) {
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = createRouteHandlerClient(request)
     const { data: userData, error: authError } = await supabase.auth.getUser()
 
     if (authError || !userData.user) {
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = createRouteHandlerClient(request)
     const { searchParams } = new URL(request.url)
     const alertId = searchParams.get("id")
 

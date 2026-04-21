@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { createRouteHandlerClient } from "@/lib/supabase/server"
 
 // DELETE /api/transactions?isin=XXX&portfolio_id=YYY
 // Delete all transactions for a specific ISIN and portfolio
 export async function DELETE(request: Request) {
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = createRouteHandlerClient(request)
     
     // Verify authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser()

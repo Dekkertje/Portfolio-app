@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { createRouteHandlerClient } from "@/lib/supabase/server"
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = createRouteHandlerClient(request)
     const body = await request.json()
     const { portfolio_id, currency, amount, description } = body
 
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = createRouteHandlerClient(request)
     const { searchParams } = new URL(request.url)
     const portfolio_id = searchParams.get("portfolio_id")
 
@@ -64,7 +64,7 @@ export async function GET(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = createRouteHandlerClient(request)
     const { searchParams } = new URL(request.url)
     const id = searchParams.get("id")
 

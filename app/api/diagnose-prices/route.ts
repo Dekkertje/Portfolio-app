@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { createRouteHandlerClient } from "@/lib/supabase/server"
 
 // GET /api/diagnose-prices?portfolio_id=xxx
 // Shows which positions have prices and which don't
 export async function GET(request: Request) {
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = createRouteHandlerClient(request)
     const { searchParams } = new URL(request.url)
     const portfolio_id = searchParams.get("portfolio_id")
 

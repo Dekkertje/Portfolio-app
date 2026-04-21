@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { X, Search, Plus } from "lucide-react"
 import { Button } from "@/components/ui/Button"
+import { authFetch } from "@/lib/supabase/client"
 
 type YahooSearchResult = {
   symbol: string
@@ -54,7 +55,7 @@ export function AddManualPositionModal({ isOpen, onClose, portfolioId, onSuccess
     
     setSaving(true)
     try {
-      const res = await fetch("/api/manual-positions", {
+      const res = await authFetch("/api/manual-positions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

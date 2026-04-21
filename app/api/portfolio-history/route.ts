@@ -17,7 +17,7 @@
  */
 
 import { NextResponse } from "next/server"
-import { createServerSupabaseClient, createServiceSupabaseClient } from "@/lib/supabase/server"
+import { createServiceSupabaseClient } from "@/lib/supabase/server"
 import { getFXRate } from "@/lib/providers/fx"
 
 const HEADERS = { "User-Agent": "Mozilla/5.0" }

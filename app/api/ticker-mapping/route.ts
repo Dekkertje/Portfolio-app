@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { createRouteHandlerClient } from "@/lib/supabase/server"
 import { matchPosition } from "@/lib/matching/engine"
 
 // POST /api/ticker-mapping
@@ -7,7 +7,7 @@ import { matchPosition } from "@/lib/matching/engine"
 // Returns: { suggestions: MatchSuggestion[] }
 
 export async function POST(request: Request) {
-  const supabase = await createServerSupabaseClient()
+  const supabase = createRouteHandlerClient(request)
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {

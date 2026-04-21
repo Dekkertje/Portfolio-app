@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { createRouteHandlerClient } from "@/lib/supabase/server"
 
 // Hardcoded dividend data for common stocks
 // In production, this would come from an API like Alpha Vantage or Financial Modeling Prep
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createServerSupabaseClient()
+    const supabase = createRouteHandlerClient(request)
     const body = await request.json()
     const { product, isin, ex_date, payment_date, amount_per_share, currency, frequency } = body
 

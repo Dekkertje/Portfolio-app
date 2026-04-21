@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Papa from "papaparse"
-import { supabase } from "@/lib/supabase/client"
+import { supabase, authFetch } from "@/lib/supabase/client"
 import { useToast } from "@/components/ui/Toast"
 import { Button } from "@/components/ui/Button"
 import { Card, CardHeader } from "@/components/ui/Card"
@@ -60,7 +60,7 @@ export default function ImportPage() {
   async function handleStartTickerReview() {
     try {
       setLoading(true)
-      const res = await fetch("/api/ticker-mapping", {
+      const res = await authFetch("/api/ticker-mapping", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ positions: uniqueProducts })

@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { NextRequest } from 'next/server'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -54,6 +55,20 @@ export function createServiceSupabaseClient() {
     throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY environment variable")
   }
   return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { persistSession: false },
+  })
+}
+
+/**
+ * Creates a Supabase client authenticated via the Bearer token in the
+ * Authorization header. Use this in API Route Handlers so they work with
+ * the localStorage-based browser client (which doesn't set cookies).
+ */
+export function createRouteHandlerClient(request: Request | NextRequest) {
+  const token = (request.headers.get('Authorization') ?? '').replace('Bearer ', '').trim()
+  if (!supabaseUrl || !supabaseAnonKey) throw new Error('Missing Supabase environment variables')
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: token ? { Authorization: `Bearer ${token}` } : {} },
     auth: { persistSession: false },
   })
 }

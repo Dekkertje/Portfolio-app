@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { X, DollarSign } from "lucide-react"
 import { Button } from "@/components/ui/Button"
+import { authFetch } from "@/lib/supabase/client"
 
 type CashPositionModalProps = {
   isOpen: boolean
@@ -22,7 +23,7 @@ export function CashPositionModal({ isOpen, onClose, portfolioId, onSuccess }: C
     
     setSaving(true)
     try {
-      const res = await fetch("/api/cash-positions", {
+      const res = await authFetch("/api/cash-positions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
