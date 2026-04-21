@@ -4,6 +4,14 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
 
+async function ensurePortfolio(userId: string | undefined) {
+  if (!userId) return
+  const { data } = await supabase.from("portfolios").select("id").eq("user_id", userId).limit(1)
+  if (!data || data.length === 0) {
+    await supabase.from("portfolios").insert({ user_id: userId, name: "Mijn Portfolio" })
+  }
+}
+
 export default function AuthCallback() {
   const router = useRouter()
 
@@ -26,13 +34,14 @@ export default function AuthCallback() {
         const accessToken  = params.get("access_token")
         const refreshToken = params.get("refresh_token") ?? ""
         if (accessToken) {
-          const { error } = await supabase.auth.setSession({
+          const { data, error } = await supabase.auth.setSession({
             access_token:  accessToken,
             refresh_token: refreshToken,
           })
           if (error) {
             router.replace(`/login?error=${encodeURIComponent(error.message)}`)
           } else {
+            await ensurePortfolio(data.session?.user.id)
             router.replace("/dashboard")
           }
           return
@@ -42,10 +51,11 @@ export default function AuthCallback() {
       // PKCE flow: ?code=...
       const code = new URLSearchParams(window.location.search).get("code")
       if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code)
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code)
         if (error) {
           router.replace(`/login?error=${encodeURIComponent(error.message)}`)
         } else {
+          await ensurePortfolio(data.session?.user.id)
           router.replace("/dashboard")
         }
         return
@@ -54,9 +64,9 @@ export default function AuthCallback() {
       // No token or code — check if a session already exists (e.g. page refresh)
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
+        await ensurePortfolio(session.user.id)
         router.replace("/dashboard")
       } else {
-        // Debug: report what was in the URL so we can diagnose the flow
         router.replace("/login?error=no_token")
       }
     }

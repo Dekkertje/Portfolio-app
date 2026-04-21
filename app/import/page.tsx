@@ -252,13 +252,22 @@ export default function ImportPage() {
         return
       }
 
-      const { data: portfolio, error: portfolioError } = await supabase
+      let { data: portfolio } = await supabase
         .from("portfolios")
         .select("id")
         .eq("user_id", userData.user.id)
         .single()
 
-      if (portfolioError || !portfolio) {
+      if (!portfolio) {
+        const { data: created } = await supabase
+          .from("portfolios")
+          .insert({ user_id: userData.user.id, name: "Mijn Portfolio" })
+          .select("id")
+          .single()
+        portfolio = created
+      }
+
+      if (!portfolio) {
         showToast("Geen portfolio gevonden.", "error")
         setLoading(false)
         return

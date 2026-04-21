@@ -88,11 +88,20 @@ export default function DashboardPage() {
 
       const userId = sessionData.session.user.id
 
-      const { data: portfolio } = await supabase
+      let { data: portfolio } = await supabase
         .from("portfolios")
         .select("id")
         .eq("user_id", userId)
         .single()
+
+      if (!portfolio) {
+        const { data: created } = await supabase
+          .from("portfolios")
+          .insert({ user_id: userId, name: "Mijn Portfolio" })
+          .select("id")
+          .single()
+        portfolio = created
+      }
 
       if (!portfolio) {
         setLoading(false)
