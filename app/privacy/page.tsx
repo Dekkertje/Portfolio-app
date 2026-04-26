@@ -117,9 +117,14 @@ export default function PrivacyPage() {
 
         <div className="mt-14 pt-8 border-t border-[#1a2744] flex items-center justify-between text-xs text-slate-600">
           <span>© {new Date().getFullYear()} DekkerTracker</span>
-          <Link href="/login" className="text-lime-500 hover:text-lime-400 transition-colors">
-            Terug naar inloggen
-          </Link>
+          <div className="flex gap-4">
+            <Link href="/voorwaarden" className="hover:text-slate-400 transition-colors">
+              Gebruiksvoorwaarden
+            </Link>
+            <Link href="/login" className="text-lime-500 hover:text-lime-400 transition-colors">
+              Terug naar inloggen
+            </Link>
+          </div>
         </div>
 
       </div>

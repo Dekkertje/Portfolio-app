@@ -141,11 +141,10 @@ export default function LoginPage() {
         </div>
 
         {/* Bottom footnote */}
-        <p className="relative text-xs text-slate-600">
-          © {new Date().getFullYear()} DekkerTracker —{" "}
-          <Link href="/privacy" className="hover:text-slate-400 transition-colors">
-            Privacybeleid
-          </Link>
+        <p className="relative text-xs text-slate-600 flex gap-3">
+          <span>© {new Date().getFullYear()} DekkerTracker</span>
+          <Link href="/privacy" className="hover:text-slate-400 transition-colors">Privacybeleid</Link>
+          <Link href="/voorwaarden" className="hover:text-slate-400 transition-colors">Voorwaarden</Link>
         </p>
       </div>
 
