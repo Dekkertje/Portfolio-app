@@ -142,7 +142,10 @@ export default function LoginPage() {
 
         {/* Bottom footnote */}
         <p className="relative text-xs text-slate-600">
-          © {new Date().getFullYear()} DekkerTracker — Persoonlijk beleggingsdashboard
+          © {new Date().getFullYear()} DekkerTracker —{" "}
+          <Link href="/privacy" className="hover:text-slate-400 transition-colors">
+            Privacybeleid
+          </Link>
         </p>
       </div>
 
