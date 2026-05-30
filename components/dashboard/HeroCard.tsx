@@ -3,6 +3,7 @@
 import { TrendingUp, TrendingDown, Minus, Target, Pencil, Check, X, Info } from "lucide-react"
 import { PrivacyText } from "@/components/ui/PrivacyText"
 import { useState, useEffect } from "react"
+import { supabase } from "@/lib/supabase/client"
 
 function fmt(v: number) {
   return new Intl.NumberFormat("nl-NL", {
@@ -52,8 +53,6 @@ function StatChip({ label, value, positive }: Chip) {
   )
 }
 
-const STORAGE_KEY = "portfolio_target_amount"
-
 type HeroCardProps = {
   totalValue: number
   netPnL: number
@@ -61,6 +60,7 @@ type HeroCardProps = {
   dailyPnL: number
   dailyPnLPct: number
   ytdReturnPct: number | null
+  portfolioId: string | null
 }
 
 export function HeroCard({
@@ -70,6 +70,7 @@ export function HeroCard({
   dailyPnL,
   dailyPnLPct,
   ytdReturnPct,
+  portfolioId,
 }: HeroCardProps) {
   const isPositive = netPnL >= 0
   const TrendIcon = isPositive ? TrendingUp : netPnL < 0 ? TrendingDown : Minus
@@ -79,27 +80,50 @@ export function HeroCard({
   const [editing, setEditing]           = useState(false)
   const [inputValue, setInputValue]     = useState("")
 
+  // Load from Supabase on mount (fall back to localStorage for existing users)
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      const n = parseFloat(stored)
-      if (!isNaN(n) && n > 0) setTargetAmount(n)
+    async function load() {
+      if (!portfolioId) return
+      const { data } = await supabase
+        .from("portfolios")
+        .select("target_amount")
+        .eq("id", portfolioId)
+        .maybeSingle()
+      if (data?.target_amount != null) {
+        setTargetAmount(Number(data.target_amount))
+      } else {
+        // one-time migration from localStorage
+        const stored = localStorage.getItem("portfolio_target_amount")
+        if (stored) {
+          const n = parseFloat(stored)
+          if (!isNaN(n) && n > 0) {
+            setTargetAmount(n)
+            supabase.from("portfolios").update({ target_amount: n }).eq("id", portfolioId)
+            localStorage.removeItem("portfolio_target_amount")
+          }
+        }
+      }
     }
-  }, [])
+    load()
+  }, [portfolioId])
 
-  function saveTarget() {
+  async function saveTarget() {
     const raw    = inputValue.replace(/[^\d,.-]/g, "").replace(",", ".")
     const parsed = parseFloat(raw)
     if (!isNaN(parsed) && parsed > 0) {
       setTargetAmount(parsed)
-      localStorage.setItem(STORAGE_KEY, String(parsed))
+      if (portfolioId) {
+        await supabase.from("portfolios").update({ target_amount: parsed }).eq("id", portfolioId)
+      }
     }
     setEditing(false)
   }
 
-  function removeTarget() {
+  async function removeTarget() {
     setTargetAmount(null)
-    localStorage.removeItem(STORAGE_KEY)
+    if (portfolioId) {
+      await supabase.from("portfolios").update({ target_amount: null }).eq("id", portfolioId)
+    }
     setEditing(false)
   }
 

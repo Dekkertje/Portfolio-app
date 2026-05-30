@@ -1,0 +1,2 @@
+ALTER TABLE portfolios
+  ADD COLUMN IF NOT EXISTS target_amount NUMERIC(15, 2) DEFAULT NULL;

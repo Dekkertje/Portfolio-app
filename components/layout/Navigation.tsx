@@ -2,14 +2,24 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, ArrowLeftRight, Upload, LogOut, TrendingUp, Users, Moon, Sun, Settings, User, Eye, EyeOff, ChevronLeft, ChevronRight, CalendarDays, CheckSquare, Tag } from "lucide-react"
+import { LayoutDashboard, ArrowLeftRight, Upload, LogOut, TrendingUp, Users, Moon, Sun, Settings, User, Eye, EyeOff, ChevronLeft, ChevronRight, CalendarDays, CheckSquare, Tag, Bell, X, CheckCheck } from "lucide-react"
 import { supabase } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { useTheme } from "@/contexts/ThemeContext"
 import { usePrivacy } from "@/contexts/PrivacyContext"
 import { useSidebar } from "@/contexts/SidebarContext"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
+
+type Notification = {
+  id: string
+  type: string
+  title: string
+  body: string | null
+  link: string | null
+  is_read: boolean
+  created_at: string
+}
 
 type NavItem = {
   name: string
@@ -36,6 +46,10 @@ export function Navigation() {
   const { isCollapsed, toggleSidebar } = useSidebar()
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [pendingTickers, setPendingTickers] = useState(0)
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [showNotifications, setShowNotifications] = useState(false)
+  const bellRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     async function loadPendingCount() {
@@ -47,6 +61,53 @@ export function Navigation() {
     }
     loadPendingCount()
   }, [])
+
+  useEffect(() => {
+    async function loadNotifications() {
+      try {
+        const res = await fetch("/api/notifications")
+        if (!res.ok) return
+        const data = await res.json()
+        setNotifications(data.notifications ?? [])
+        setUnreadCount(data.unread ?? 0)
+      } catch { /* non-critical */ }
+    }
+    loadNotifications()
+    const interval = setInterval(loadNotifications, 60_000)
+    return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
+        setShowNotifications(false)
+      }
+    }
+    if (showNotifications) document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [showNotifications])
+
+  async function markAllRead() {
+    await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ all: true }) })
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+    setUnreadCount(0)
+  }
+
+  async function markRead(id: string) {
+    await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) })
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
+    setUnreadCount(prev => Math.max(0, prev - 1))
+  }
+
+  function timeAgo(dateStr: string) {
+    const diff = Date.now() - new Date(dateStr).getTime()
+    const mins = Math.floor(diff / 60_000)
+    if (mins < 1)  return "zojuist"
+    if (mins < 60) return `${mins}m`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24)  return `${hrs}u`
+    return `${Math.floor(hrs / 24)}d`
+  }
 
   useEffect(() => {
     async function loadProfile() {
@@ -210,6 +271,93 @@ export function Navigation() {
 
       {/* Theme Toggle, Privacy Mode & Logout */}
       <div className="border-t border-[#1a2744] p-4 space-y-2">
+        {/* Notifications bell */}
+        <div ref={bellRef} className="relative">
+          <button
+            onClick={() => setShowNotifications(p => !p)}
+            title={isCollapsed ? "Notificaties" : undefined}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all hover:bg-white/5 hover:text-white ${
+              isCollapsed ? "justify-center" : ""
+            } ${showNotifications ? "bg-white/5 text-white" : "text-slate-400"}`}
+          >
+            <div className="relative shrink-0">
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-bold text-white leading-none">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </div>
+            {!isCollapsed && (
+              <span className="flex flex-1 items-center justify-between">
+                Notificaties
+                {unreadCount > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
+                    {unreadCount}
+                  </span>
+                )}
+              </span>
+            )}
+          </button>
+
+          {showNotifications && (
+            <div className={`absolute bottom-full mb-2 z-50 w-80 rounded-xl bg-[#0d1829] border border-[#1a2744] shadow-2xl shadow-black/50 ${
+              isCollapsed ? "left-full ml-2 bottom-0" : "left-0"
+            }`}>
+              <div className="flex items-center justify-between border-b border-[#1a2744] px-4 py-3">
+                <h3 className="text-sm font-semibold text-slate-100">Notificaties</h3>
+                <div className="flex items-center gap-2">
+                  {unreadCount > 0 && (
+                    <button onClick={markAllRead} title="Alles gelezen" className="text-slate-400 hover:text-lime-400 transition-colors">
+                      <CheckCheck className="h-4 w-4" />
+                    </button>
+                  )}
+                  <button onClick={() => setShowNotifications(false)} className="text-slate-400 hover:text-slate-200 transition-colors">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="max-h-80 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-slate-500">Geen notificaties</div>
+                ) : (
+                  notifications.map(n => (
+                    <div
+                      key={n.id}
+                      className={`border-b border-[#1a2744] last:border-0 px-4 py-3 transition-colors ${
+                        n.is_read ? "opacity-60" : "bg-blue-500/5"
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        {!n.is_read && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" />}
+                        {n.is_read  && <span className="mt-1.5 h-1.5 w-1.5 shrink-0" />}
+                        <div className="min-w-0 flex-1">
+                          {n.link ? (
+                            <Link
+                              href={n.link}
+                              onClick={() => { if (!n.is_read) markRead(n.id); setShowNotifications(false) }}
+                              className="block"
+                            >
+                              <p className="text-xs font-medium text-slate-200 hover:text-lime-400 transition-colors">{n.title}</p>
+                              {n.body && <p className="mt-0.5 text-xs text-slate-400 line-clamp-2">{n.body}</p>}
+                            </Link>
+                          ) : (
+                            <div onClick={() => { if (!n.is_read) markRead(n.id) }} className="cursor-pointer">
+                              <p className="text-xs font-medium text-slate-200">{n.title}</p>
+                              {n.body && <p className="mt-0.5 text-xs text-slate-400 line-clamp-2">{n.body}</p>}
+                            </div>
+                          )}
+                          <p className="mt-1 text-[10px] text-slate-500">{timeAgo(n.created_at)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         <button
           onClick={toggleTheme}
           title={isCollapsed ? (theme === "light" ? "Dark Mode" : "Light Mode") : undefined}

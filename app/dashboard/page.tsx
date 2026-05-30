@@ -40,6 +40,7 @@ export default function DashboardPage() {
   const [portfolioId, setPortfolioId] = useState<string | null>(null)
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true)
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
+  const [portfolioTargetAmount, setPortfolioTargetAmount] = useState<number | null>(null)
   const [showAddPositionModal, setShowAddPositionModal] = useState(false)
   const [showCashModal, setShowCashModal] = useState(false)
   const [cashPositions, setCashPositions] = useState<any[]>([])
@@ -114,6 +115,11 @@ export default function DashboardPage() {
       }
 
       setPortfolioId(portfolio.id)
+
+      // Load target amount for compound calculator
+      const { data: portfolioData } = await supabase
+        .from("portfolios").select("target_amount").eq("id", portfolio.id).maybeSingle()
+      if (portfolioData?.target_amount != null) setPortfolioTargetAmount(Number(portfolioData.target_amount))
 
       const { data: transactions, error: txError } = await supabase
         .from("transactions")
@@ -1167,6 +1173,7 @@ export default function DashboardPage() {
               dailyPnL={metrics.totalDailyPnL}
               dailyPnLPct={metrics.totalDailyPnLPercent}
               ytdReturnPct={ytdReturnPct}
+              portfolioId={portfolioId}
             />
           </div>
           <div className="lg:col-span-1">
@@ -1427,7 +1434,10 @@ export default function DashboardPage() {
         </div>
 
         {/* LAYER 5 — Tools */}
-        <CompoundCalculator />
+        <CompoundCalculator
+          currentPortfolioValue={metrics.totalValue}
+          targetAmount={portfolioTargetAmount}
+        />
 
       </div>
 

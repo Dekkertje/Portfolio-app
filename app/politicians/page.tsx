@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
 import { DashboardLayout } from "@/components/layout/DashboardLayout"
 import Link from "next/link"
+import { Bell, BellOff } from "lucide-react"
 
 interface Politician {
   id: string
@@ -24,53 +25,63 @@ interface PoliticianWithStats extends Politician {
   total_holdings_value: number
 }
 
+function partyColor(party: string) {
+  if (party === "democrat")   return "text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20"
+  if (party === "republican") return "text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-900/20"
+  return "text-purple-600 bg-purple-50 dark:text-purple-400 dark:bg-purple-900/20"
+}
+
 export default function PoliticiansPage() {
   const [politicians, setPoliticians] = useState<PoliticianWithStats[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<"all" | "house" | "senate">("all")
+  const [filter, setFilter] = useState<"all" | "following" | "house" | "senate">("all")
   const [partyFilter, setPartyFilter] = useState<"all" | "democrat" | "republican" | "independent">("all")
+  const [following, setFollowing] = useState<Set<string>>(new Set())
+  const [userId, setUserId] = useState<string | null>(null)
 
   useEffect(() => {
+    async function init() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      setUserId(session.user.id)
+
+      // Load followed politicians
+      const { data: follows } = await supabase
+        .from("politician_follows")
+        .select("politician_id")
+        .eq("user_id", session.user.id)
+      if (follows) setFollowing(new Set(follows.map(f => f.politician_id)))
+    }
+    init()
     fetchPoliticians()
   }, [])
 
   async function fetchPoliticians() {
     setLoading(true)
-
     try {
-      // Fetch all politicians
-      let query = supabase.from("politicians").select("*")
-
-      const { data: politiciansData, error } = await query
-
+      const { data: politiciansData, error } = await supabase.from("politicians").select("*")
       if (error) throw error
 
-      // Fetch trades count for each politician
       const politiciansWithStats = await Promise.all(
         (politiciansData || []).map(async (politician) => {
           const { count: totalTrades } = await supabase
-            .from("politician_trades")
-            .select("*", { count: "exact", head: true })
+            .from("politician_trades").select("*", { count: "exact", head: true })
             .eq("politician_id", politician.id)
 
           const { count: recentTrades } = await supabase
-            .from("politician_trades")
-            .select("*", { count: "exact", head: true })
+            .from("politician_trades").select("*", { count: "exact", head: true })
             .eq("politician_id", politician.id)
             .gte("transaction_date", new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
 
           const { data: holdings } = await supabase
-            .from("politician_holdings")
-            .select("total_value")
+            .from("politician_holdings").select("total_value")
             .eq("politician_id", politician.id)
-
-          const totalValue = holdings?.reduce((sum, h) => sum + (Number(h.total_value) || 0), 0) || 0
 
           return {
             ...politician,
             total_trades: totalTrades || 0,
             recent_trades: recentTrades || 0,
-            total_holdings_value: totalValue,
+            total_holdings_value: holdings?.reduce((s, h) => s + (Number(h.total_value) || 0), 0) || 0,
           }
         })
       )
@@ -83,160 +94,157 @@ export default function PoliticiansPage() {
     }
   }
 
-  const filteredPoliticians = politicians.filter((p) => {
-    if (filter !== "all" && p.chamber !== filter) return false
-    if (partyFilter !== "all" && p.party !== partyFilter) return false
-    return true
-  })
+  async function toggleFollow(e: React.MouseEvent, politicianId: string) {
+    e.preventDefault()
+    if (!userId) return
+    const isFollowing = following.has(politicianId)
 
-  const getPartyColor = (party: string) => {
-    switch (party) {
-      case "democrat":
-        return "text-blue-600 bg-blue-50"
-      case "republican":
-        return "text-red-600 bg-red-50"
-      case "independent":
-        return "text-purple-600 bg-purple-50"
-      default:
-        return "text-gray-600 bg-gray-50"
+    if (isFollowing) {
+      await supabase.from("politician_follows").delete()
+        .eq("user_id", userId).eq("politician_id", politicianId)
+      setFollowing(prev => { const s = new Set(prev); s.delete(politicianId); return s })
+    } else {
+      await supabase.from("politician_follows").insert({ user_id: userId, politician_id: politicianId })
+      setFollowing(prev => new Set(prev).add(politicianId))
     }
   }
 
-  const getPartyBadge = (party: string) => {
-    return party.charAt(0).toUpperCase() + party.slice(1)
-  }
+  const filteredPoliticians = politicians.filter((p) => {
+    if (filter === "following" && !following.has(p.id)) return false
+    if (filter === "house"     && p.chamber !== "house")    return false
+    if (filter === "senate"    && p.chamber !== "senate")   return false
+    if (partyFilter !== "all"  && p.party !== partyFilter)  return false
+    return true
+  })
+
+  const filterBtn = (value: typeof filter, label: string) => (
+    <button
+      onClick={() => setFilter(value)}
+      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+        filter === value
+          ? "bg-lime-500 text-white"
+          : "bg-slate-100 dark:bg-[#1a2744] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#1a2744]/80"
+      }`}
+    >
+      {label}
+      {value === "following" && following.size > 0 && (
+        <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-white/30 px-1 text-xs font-bold">{following.size}</span>
+      )}
+    </button>
+  )
+
+  const partyBtn = (value: typeof partyFilter, label: string) => (
+    <button
+      onClick={() => setPartyFilter(value)}
+      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+        partyFilter === value
+          ? "bg-lime-500 text-white"
+          : "bg-slate-100 dark:bg-[#1a2744] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#1a2744]/80"
+      }`}
+    >
+      {label}
+    </button>
+  )
 
   return (
     <DashboardLayout>
-      <div className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-8 py-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Congressional Trading Tracker</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Track stock trades made by members of Congress as disclosed under the STOCK Act
-          </p>
-        </div>
+      <div className="border-b border-slate-200 dark:border-[#1a2744] bg-white dark:bg-[#0b1120] px-8 py-6">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Congressional Trading Tracker</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Volg aandelenhandelingen van Congresdeden onder de STOCK Act
+        </p>
       </div>
 
-      <div className="p-8">
-
-      {/* Filters */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow dark:shadow-slate-900/50 p-6 mb-6">
-        <div className="flex flex-wrap gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Chamber</label>
+      <div className="p-8 space-y-6">
+        {/* Filters */}
+        <div className="flex flex-wrap gap-6 rounded-xl bg-white dark:bg-[#0d1829] p-4 shadow-sm ring-1 ring-slate-900/5 dark:ring-[#1a2744]/80">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Weergave</p>
             <div className="flex gap-2">
-              <button
-                onClick={() => setFilter("all")}
-                className={`px-4 py-2 rounded ${
-                  filter === "all" ? "bg-blue-600 text-white" : "bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300"
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setFilter("house")}
-                className={`px-4 py-2 rounded ${
-                  filter === "house" ? "bg-blue-600 text-white" : "bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300"
-                }`}
-              >
-                House
-              </button>
-              <button
-                onClick={() => setFilter("senate")}
-                className={`px-4 py-2 rounded ${
-                  filter === "senate" ? "bg-blue-600 text-white" : "bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300"
-                }`}
-              >
-                Senate
-              </button>
+              {filterBtn("all",       "Alle")}
+              {filterBtn("following", "Gevolgd")}
+              {filterBtn("house",     "House")}
+              {filterBtn("senate",    "Senate")}
             </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Party</label>
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Partij</p>
             <div className="flex gap-2">
-              <button
-                onClick={() => setPartyFilter("all")}
-                className={`px-4 py-2 rounded ${
-                  partyFilter === "all" ? "bg-blue-600 text-white" : "bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300"
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setPartyFilter("democrat")}
-                className={`px-4 py-2 rounded ${
-                  partyFilter === "democrat" ? "bg-blue-600 text-white" : "bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300"
-                }`}
-              >
-                Democrat
-              </button>
-              <button
-                onClick={() => setPartyFilter("republican")}
-                className={`px-4 py-2 rounded ${
-                  partyFilter === "republican" ? "bg-blue-600 text-white" : "bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300"
-                }`}
-              >
-                Republican
-              </button>
+              {partyBtn("all",        "Alle")}
+              {partyBtn("democrat",   "Democrat")}
+              {partyBtn("republican", "Republican")}
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Politicians Grid */}
-      {loading ? (
-        <div className="text-center py-12">
-          <p className="text-gray-500 dark:text-gray-400">Loading politicians...</p>
-        </div>
-      ) : filteredPoliticians.length === 0 ? (
-        <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-lg shadow dark:shadow-slate-900/50">
-          <p className="text-gray-500 dark:text-gray-400">No politicians found matching your filters.</p>
-        </div>
-      ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredPoliticians.map((politician) => (
-            <Link
-              key={politician.id}
-              href={`/politicians/${politician.id}`}
-              className="block bg-white dark:bg-slate-800 rounded-lg shadow dark:shadow-slate-900/50 hover:shadow-lg dark:hover:shadow-slate-900 transition-shadow p-6"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold mb-1 dark:text-slate-100">{politician.full_name}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {politician.chamber === "house" ? "Representative" : "Senator"} •{" "}
-                    {politician.state}
-                    {politician.district ? ` District ${politician.district}` : ""}
-                  </p>
-                </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getPartyColor(politician.party)}`}>
-                  {getPartyBadge(politician.party)}
-                </span>
-              </div>
+        {loading ? (
+          <div className="flex h-48 items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1a2744] border-t-lime-500" />
+          </div>
+        ) : filteredPoliticians.length === 0 ? (
+          <div className="rounded-xl bg-white dark:bg-[#0d1829] p-12 text-center shadow-sm ring-1 ring-slate-900/5 dark:ring-[#1a2744]/80">
+            <p className="text-slate-500 dark:text-slate-400">
+              {filter === "following" ? "Je volgt nog niemand — klik op de bel om iemand te volgen" : "Geen resultaten"}
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filteredPoliticians.map((politician) => {
+              const isFollowed = following.has(politician.id)
+              return (
+                <Link
+                  key={politician.id}
+                  href={`/politicians/${politician.id}`}
+                  className="group relative block rounded-xl bg-white dark:bg-[#0d1829] p-5 shadow-sm ring-1 ring-slate-900/5 dark:ring-[#1a2744]/80 hover:ring-slate-200 dark:hover:ring-[#2a3a5e] transition-all"
+                >
+                  {/* Follow button */}
+                  <button
+                    onClick={(e) => toggleFollow(e, politician.id)}
+                    title={isFollowed ? "Ontvolgen" : "Volgen"}
+                    className={`absolute right-4 top-4 rounded-lg p-1.5 transition-colors ${
+                      isFollowed
+                        ? "text-amber-500 bg-amber-500/10 hover:bg-amber-500/20"
+                        : "text-slate-300 dark:text-slate-600 hover:text-amber-500 hover:bg-amber-500/10"
+                    }`}
+                  >
+                    {isFollowed ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+                  </button>
 
-              <div className="grid grid-cols-3 gap-4 pt-4 border-t dark:border-slate-700">
-                <div>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{politician.total_trades}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Total Trades</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{politician.recent_trades}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Last 90 Days</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                    ${(politician.total_holdings_value / 1000000).toFixed(1)}M
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Holdings</p>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
+                  <div className="pr-8">
+                    <div className="flex items-start gap-2 mb-1">
+                      <h3 className="font-bold text-slate-900 dark:text-slate-100">{politician.full_name}</h3>
+                    </div>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      {politician.chamber === "house" ? "Representative" : "Senator"} · {politician.state}
+                      {politician.district ? ` D${politician.district}` : ""}
+                    </p>
+                    <span className={`mt-2 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${partyColor(politician.party)}`}>
+                      {politician.party.charAt(0).toUpperCase() + politician.party.slice(1)}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 dark:border-[#1a2744] pt-4">
+                    <div>
+                      <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{politician.total_trades}</p>
+                      <p className="text-xs text-slate-400">Trades</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{politician.recent_trades}</p>
+                      <p className="text-xs text-slate-400">90 dagen</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                        ${(politician.total_holdings_value / 1_000_000).toFixed(1)}M
+                      </p>
+                      <p className="text-xs text-slate-400">Holdings</p>
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        )}
       </div>
     </DashboardLayout>
   )
 }
-

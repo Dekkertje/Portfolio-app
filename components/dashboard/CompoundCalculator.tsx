@@ -1,12 +1,17 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { Calculator } from "lucide-react"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
+import { useState, useMemo, useEffect } from "react"
+import { Calculator, Target } from "lucide-react"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from "recharts"
 import { useTheme } from "@/contexts/ThemeContext"
 import { PrivacyText } from "@/components/ui/PrivacyText"
 
-export function CompoundCalculator() {
+type CompoundCalculatorProps = {
+  currentPortfolioValue?: number
+  targetAmount?: number | null
+}
+
+export function CompoundCalculator({ currentPortfolioValue, targetAmount: propTarget }: CompoundCalculatorProps) {
   const { theme } = useTheme()
   const isDark = theme === "dark"
 
@@ -15,25 +20,33 @@ export function CompoundCalculator() {
   const [expectedReturn, setExpectedReturn] = useState("7")
   const [years, setYears] = useState("10")
 
-  const chartData = useMemo(() => {
+  // Pre-fill with portfolio value when available
+  useEffect(() => {
+    if (currentPortfolioValue && currentPortfolioValue > 0) {
+      setInitialAmount(String(Math.round(currentPortfolioValue)))
+    }
+  }, [currentPortfolioValue])
+
+  const { chartData, goalYear } = useMemo(() => {
     const initial = parseFloat(initialAmount) || 0
     const monthly = parseFloat(monthlyContribution) || 0
     const rate = (parseFloat(expectedReturn) || 0) / 100
     const totalYears = parseInt(years) || 0
+    const goal = propTarget ?? null
 
     const data = []
     let totalInvested = initial
     let totalValue = initial
+    let foundGoalYear: number | null = null
 
     for (let year = 0; year <= totalYears; year++) {
       if (year > 0) {
-        // Add monthly contributions
         totalInvested += monthly * 12
-        
-        // Calculate compound interest
         totalValue = totalValue * (1 + rate) + (monthly * 12 * (1 + rate / 2))
       }
-
+      if (goal && foundGoalYear === null && totalValue >= goal) {
+        foundGoalYear = year
+      }
       data.push({
         year,
         invested: Math.round(totalInvested),
@@ -42,8 +55,19 @@ export function CompoundCalculator() {
       })
     }
 
-    return data
-  }, [initialAmount, monthlyContribution, expectedReturn, years])
+    // If goal not reached within selected years, keep searching up to 50y
+    if (goal && foundGoalYear === null) {
+      let tv = data[data.length - 1]?.value ?? initial
+      let ti = data[data.length - 1]?.invested ?? initial
+      for (let y = totalYears + 1; y <= 50; y++) {
+        ti += monthly * 12
+        tv = tv * (1 + rate) + (monthly * 12 * (1 + rate / 2))
+        if (tv >= goal) { foundGoalYear = y; break }
+      }
+    }
+
+    return { chartData: data, goalYear: foundGoalYear }
+  }, [initialAmount, monthlyContribution, expectedReturn, years, propTarget])
 
   const finalValue = chartData[chartData.length - 1]
 
@@ -114,6 +138,24 @@ export function CompoundCalculator() {
           />
         </div>
       </div>
+
+      {/* Goal banner */}
+      {propTarget && (
+        <div className={`mb-4 flex items-center gap-3 rounded-lg px-4 py-3 text-sm ${
+          goalYear !== null
+            ? "bg-lime-500/10 border border-lime-500/20 text-lime-700 dark:text-lime-400"
+            : "bg-slate-100 dark:bg-[#0b1120] border border-slate-200 dark:border-[#1a2744] text-slate-500 dark:text-slate-400"
+        }`}>
+          <Target className="h-4 w-4 shrink-0" />
+          {goalYear !== null ? (
+            goalYear <= parseInt(years) || 0
+              ? <span>Je bereikt je doelbedrag van <strong>€{propTarget.toLocaleString("nl-NL")}</strong> in <strong>jaar {goalYear}</strong></span>
+              : <span>Je bereikt je doelbedrag in <strong>jaar {goalYear}</strong> — vergroot je tijdshorizon om dit te zien in de grafiek</span>
+          ) : (
+            <span>Met deze instellingen bereik je het doelbedrag van €{propTarget.toLocaleString("nl-NL")} niet binnen 50 jaar — verhoog je inleg of rendement</span>
+          )}
+        </div>
+      )}
 
       {/* Results */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -189,6 +231,14 @@ export function CompoundCalculator() {
               strokeWidth={2}
               dot={false}
             />
+            {propTarget && propTarget > 0 && (
+              <ReferenceLine
+                y={propTarget}
+                stroke="#a3e635"
+                strokeDasharray="5 3"
+                label={{ value: "Doel", position: "insideTopRight", fontSize: 11, fill: "#a3e635" }}
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>
