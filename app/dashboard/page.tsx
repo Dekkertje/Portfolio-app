@@ -39,6 +39,7 @@ export default function DashboardPage() {
   const [customEndDate, setCustomEndDate] = useState<string>('')
   const [portfolioId, setPortfolioId] = useState<string | null>(null)
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true)
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
   const [showAddPositionModal, setShowAddPositionModal] = useState(false)
   const [showCashModal, setShowCashModal] = useState(false)
   const [cashPositions, setCashPositions] = useState<any[]>([])
@@ -88,11 +89,15 @@ export default function DashboardPage() {
 
       const userId = sessionData.session.user.id
 
+      // Use limit(1) + maybeSingle() so duplicate portfolios (edge case) never
+      // cause .single() to error and silently create yet another empty portfolio.
       let { data: portfolio } = await supabase
         .from("portfolios")
         .select("id")
         .eq("user_id", userId)
-        .single()
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle()
 
       if (!portfolio) {
         const { data: created } = await supabase
@@ -172,14 +177,18 @@ export default function DashboardPage() {
       const latestPriceMap: Record<string, Price> = {}
 
       if (!priceError && prices) {
-        // Prices loaded successfully (server-side logging only)
         for (const price of prices as Price[]) {
           const key = `${price.product}__${price.isin || ""}`
-
           if (!latestPriceMap[key]) {
             latestPriceMap[key] = price
           }
         }
+        // Track the most recent price_date across all loaded prices
+        const latestDate = (prices as Price[]).reduce<string | null>((max, p) => {
+          if (!p.price_date) return max
+          return max === null || p.price_date > max ? p.price_date : max
+        }, null)
+        if (latestDate) setLastRefreshed(new Date(latestDate))
       }
 
       const grouped: Record<string, Position> = {}
@@ -231,13 +240,19 @@ export default function DashboardPage() {
         // Track fees for informational purposes
         grouped[key].totalFees += fees
 
-        if (tx.transaction_type === "buy") {
+        // Treat "unknown" type as buy/sell based on total_eur sign.
+        // This handles DEGIRO CSVs where the local_value column was missing/zero.
+        const resolvedType = tx.transaction_type === "unknown"
+          ? (Number(tx.total_eur) < 0 ? "buy" : Number(tx.total_eur) > 0 ? "sell" : "unknown")
+          : tx.transaction_type
+
+        if (resolvedType === "buy") {
           grouped[key].quantity += absQuantity
           // total_eur already includes fees from DEGIRO
           grouped[key].invested += total
         }
 
-        if (tx.transaction_type === "sell") {
+        if (resolvedType === "sell") {
           // Calculate average price before selling
           const avgPriceBeforeSell = grouped[key].quantity > 0
             ? grouped[key].invested / grouped[key].quantity
@@ -367,7 +382,10 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    loadDashboard()
+    // Load dashboard data, then immediately refresh prices so new imports show current prices
+    loadDashboard().then(() => {
+      handleRefreshPrices(true)
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -1108,7 +1126,12 @@ export default function DashboardPage() {
       <div className="border-b border-slate-200 dark:border-[#1a2744] bg-white dark:bg-[#0b1120] px-4 py-4 sm:px-8 sm:py-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Portfolio</h1>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {lastRefreshed && (
+              <span className="text-xs text-slate-400 dark:text-slate-500 hidden sm:inline">
+                Koersen: {lastRefreshed.toLocaleDateString("nl-NL", { day: "numeric", month: "short" })} {lastRefreshed.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            )}
             <Button onClick={() => setShowAddPositionModal(true)} variant="secondary" className="gap-1.5 text-sm">
               <Plus className="h-3.5 w-3.5" /> Aandeel
             </Button>
@@ -1278,12 +1301,33 @@ export default function DashboardPage() {
 
         {/* LAYER 3 — Posities tabellen */}
         {positions.length === 0 ? (
-          <div className="rounded-2xl bg-white dark:bg-[#0d1829] p-12 text-center shadow-sm ring-1 ring-slate-900/5 dark:ring-[#1a2744]/80">
-            <BarChart2 className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600 mb-3" />
-            <p className="font-medium text-slate-600 dark:text-slate-400">Geen posities gevonden</p>
-            <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">
-              Importeer transacties of voeg handmatig aandelen toe
-            </p>
+          <div className="rounded-2xl bg-white dark:bg-[#0d1829] shadow-sm ring-1 ring-slate-900/5 dark:ring-[#1a2744]/80 overflow-hidden">
+            <div className="px-8 py-10 text-center border-b border-slate-100 dark:border-[#1a2744]">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-lime-500/10 border border-lime-500/20">
+                <BarChart2 className="h-7 w-7 text-lime-500" />
+              </div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Welkom bij DekkerTracker</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Importeer je DEGIRO transacties om je portfolio te zien</p>
+            </div>
+            <div className="grid grid-cols-1 divide-y divide-slate-100 dark:divide-[#1a2744] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+              {[
+                { step: "1", title: "Export uit DEGIRO", desc: "Ga naar Account → Transacties → Export → CSV formaat", icon: "📥" },
+                { step: "2", title: "Importeer het bestand", desc: "Klik op Importeren in het menu en upload je CSV bestand", icon: "📤" },
+                { step: "3", title: "Bekijk je portfolio", desc: "Koersen worden automatisch opgehaald via Yahoo Finance", icon: "📊" },
+              ].map(({ step, title, desc, icon }) => (
+                <div key={step} className="flex flex-col items-center gap-2 px-8 py-8 text-center">
+                  <span className="text-3xl">{icon}</span>
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-lime-500 text-xs font-bold text-white">{step}</span>
+                  <p className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{title}</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">{desc}</p>
+                </div>
+              ))}
+            </div>
+            <div className="px-8 py-5 text-center bg-slate-50 dark:bg-[#0b1120]">
+              <a href="/import" className="inline-flex items-center gap-2 rounded-lg bg-lime-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-lime-400 transition-colors">
+                Ga naar importeren →
+              </a>
+            </div>
           </div>
         ) : (
           <>

@@ -61,11 +61,16 @@ export function parseDegiroDate(value: string | undefined): string | null {
 }
 
 /**
- * Detect transaction type based on local value
+ * Detect transaction type based on local value, with total_eur as fallback.
+ * DEGIRO CSVs occasionally omit the local-currency value (e.g. cash transactions),
+ * so we use total_eur sign when localValue is zero.
  */
-export function detectTransactionType(localValue: number): string {
+export function detectTransactionType(localValue: number, totalEur?: number): string {
   if (localValue < 0) return "buy"
   if (localValue > 0) return "sell"
+  // Fallback: use total_eur sign (negative = money left account = buy)
+  if (totalEur !== undefined && totalEur < 0) return "buy"
+  if (totalEur !== undefined && totalEur > 0) return "sell"
   return "unknown"
 }
 

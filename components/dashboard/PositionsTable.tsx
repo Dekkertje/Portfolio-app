@@ -127,7 +127,58 @@ export function PositionsTable({ positions, onDeletePosition }: PositionsTablePr
 
   return (
     <div className="overflow-hidden rounded-xl bg-white dark:bg-[#0d1829] shadow-sm ring-1 ring-slate-900/5 dark:ring-[#1a2744]/80">
-      <div className="overflow-x-auto">
+
+      {/* ── Mobile card view (< md) ─────────────────────────────────────────── */}
+      <div className="md:hidden divide-y divide-slate-100 dark:divide-[#1a2744]">
+        {sortedPositions.map((position, index) => {
+          const unrealizedPnL = position.currentValue - position.invested
+          const totalPnL = unrealizedPnL + position.realizedPnL - position.totalFees
+          const profitLossPercentage = position.invested > 0 ? (totalPnL / position.invested) * 100 : 0
+          const isProfit = totalPnL >= 0
+
+          const handleCardClick = (e: React.MouseEvent) => {
+            if ((e.target as HTMLElement).closest("button")) return
+            const qs = new URLSearchParams({
+              product: position.product,
+              qty: String(position.quantity),
+              avgPrice: String(position.avgPrice),
+              value: String(position.currentValue),
+              pnl: String(totalPnL),
+            })
+            if (position.isin) qs.set("isin", position.isin)
+            if (position.isCrypto) qs.set("isCrypto", "true")
+            router.push(`/dashboard/position?${qs}`)
+          }
+
+          return (
+            <div key={index} onClick={handleCardClick} className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-[#1a2744]/30 transition-colors">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${
+                  isProfit ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"
+                }`}>
+                  {position.product.slice(0, 2).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{position.product}</p>
+                    {position.isETF && <span className="shrink-0 rounded-full bg-purple-100 dark:bg-purple-900/30 px-1.5 py-0.5 text-xs font-medium text-purple-700 dark:text-purple-400">ETF</span>}
+                  </div>
+                  <p className="text-xs text-slate-400">{formatNumber(position.quantity)} × {formatCurrency(position.avgPrice)}</p>
+                </div>
+              </div>
+              <div className="text-right shrink-0 ml-3">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{formatCurrency(position.currentValue)}</p>
+                <p className={`text-xs font-medium ${isProfit ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+                  {isProfit ? "+" : ""}{formatCurrency(totalPnL)} ({profitLossPercentage >= 0 ? "+" : ""}{profitLossPercentage.toFixed(1)}%)
+                </p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* ── Desktop table view (≥ md) ────────────────────────────────────────── */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200 dark:divide-[#1a2744]">
           <thead className="bg-slate-50 dark:bg-[#0b1120]">
             <tr>
@@ -328,6 +379,7 @@ export function PositionsTable({ positions, onDeletePosition }: PositionsTablePr
           </tbody>
         </table>
       </div>
+      {/* end desktop table */}
     </div>
   )
 }

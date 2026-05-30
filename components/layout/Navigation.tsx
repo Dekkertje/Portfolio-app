@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, ArrowLeftRight, Upload, LogOut, TrendingUp, Users, Moon, Sun, Settings, User, Eye, EyeOff, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react"
+import { LayoutDashboard, ArrowLeftRight, Upload, LogOut, TrendingUp, Users, Moon, Sun, Settings, User, Eye, EyeOff, ChevronLeft, ChevronRight, CalendarDays, CheckSquare, Tag } from "lucide-react"
 import { supabase } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { useTheme } from "@/contexts/ThemeContext"
@@ -18,12 +18,14 @@ type NavItem = {
 }
 
 const navigation: NavItem[] = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Dividenden", href: "/dashboard/dividenden", icon: CalendarDays },
-  { name: "Transacties", href: "/transactions", icon: ArrowLeftRight },
-  { name: "Importeren", href: "/import", icon: Upload },
-  { name: "Politicians", href: "/politicians", icon: Users },
-  { name: "Instellingen", href: "/settings", icon: Settings },
+  { name: "Dashboard",    href: "/dashboard",               icon: LayoutDashboard },
+  { name: "Dividenden",   href: "/dashboard/dividenden",    icon: CalendarDays    },
+  { name: "Afgesloten",   href: "/dashboard/gesloten",      icon: CheckSquare     },
+  { name: "Tickers",      href: "/dashboard/tickers",       icon: Tag             },
+  { name: "Transacties",  href: "/transactions",            icon: ArrowLeftRight  },
+  { name: "Importeren",   href: "/import",                  icon: Upload          },
+  { name: "Politicians",  href: "/politicians",             icon: Users           },
+  { name: "Instellingen", href: "/settings",                icon: Settings        },
 ]
 
 export function Navigation() {
@@ -33,6 +35,18 @@ export function Navigation() {
   const { privacyMode, togglePrivacyMode } = usePrivacy()
   const { isCollapsed, toggleSidebar } = useSidebar()
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [pendingTickers, setPendingTickers] = useState(0)
+
+  useEffect(() => {
+    async function loadPendingCount() {
+      try {
+        const res  = await fetch("/api/ticker-mapping?pending=1&count=1")
+        const data = await res.json()
+        setPendingTickers(data.count ?? 0)
+      } catch { /* non-critical */ }
+    }
+    loadPendingCount()
+  }, [])
 
   useEffect(() => {
     async function loadProfile() {
@@ -164,7 +178,7 @@ export function Navigation() {
               href={item.href}
               title={isCollapsed ? item.name : undefined}
               className={`
-                flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all
+                relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all
                 ${isCollapsed ? "justify-center" : ""}
                 ${
                   isActive
@@ -173,8 +187,22 @@ export function Navigation() {
                 }
               `}
             >
-              <Icon className="h-5 w-5" />
-              {!isCollapsed && item.name}
+              <Icon className="h-5 w-5 shrink-0" />
+              {!isCollapsed && (
+                <span className="flex flex-1 items-center justify-between">
+                  {item.name}
+                  {item.href === "/dashboard/tickers" && pendingTickers > 0 && (
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-bold text-white">
+                      {pendingTickers}
+                    </span>
+                  )}
+                </span>
+              )}
+              {isCollapsed && item.href === "/dashboard/tickers" && pendingTickers > 0 && (
+                <span className="absolute right-2 top-2 flex h-3 w-3 items-center justify-center rounded-full bg-amber-500 text-[8px] font-bold text-white">
+                  {pendingTickers > 9 ? "+" : pendingTickers}
+                </span>
+              )}
             </Link>
           )
         })}

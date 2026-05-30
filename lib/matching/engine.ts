@@ -7,6 +7,7 @@
  *   3. Exact ISIN + currency match
  *   4. Exact ISIN only (single listing in DB)
  *   5. Exact ISIN, multi-listing → prefer non-ADR on European exchange
+ *   5.5 OpenFIGI ISIN lookup (ISIN present but not in securities DB)
  *   6. Fuzzy name match (score ≥ FUZZY_THRESHOLD)
  *   7. No match → manual input required
  *
@@ -20,6 +21,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { similarity, normaliseName, bestNameScore } from "./string-utils"
 import { normaliseMic, buildYahooSymbol, isEuropeanExchange } from "./exchange-map"
+import { lookupByIsin } from "./openfigi"
 
 export const CONFIDENCE = {
   AUTO_ACCEPT:   0.95,
@@ -95,6 +97,21 @@ export async function matchPosition(
   if (pos.isin) {
     const result = await matchByIsin(pos, supabase)
     if (result) return result
+  }
+
+  // ── Step 5.5: OpenFIGI ISIN lookup (ISIN present but not in our DB) ──────
+  if (pos.isin) {
+    const figi = await lookupByIsin(pos.isin, pos.currency)
+    if (figi) {
+      return {
+        status:       "matched",
+        yahoo_symbol: figi.yahoo_symbol,
+        ticker:       figi.ticker,
+        confidence:   0.82,
+        method:       "openfigi",
+        needs_review: true,
+      }
+    }
   }
 
   // ── Step 6: Fuzzy name matching ───────────────────────────────────────────

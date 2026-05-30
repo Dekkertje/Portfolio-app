@@ -27,7 +27,8 @@ export default function TransactionsPage() {
       if (!userData.user) { window.location.href = "/login"; return }
 
       const { data: portfolio } = await supabase
-        .from("portfolios").select("id").eq("user_id", userData.user.id).single()
+        .from("portfolios").select("id").eq("user_id", userData.user.id)
+        .order("created_at", { ascending: true }).limit(1).maybeSingle()
       if (!portfolio) { setLoading(false); return }
 
       const { data, error } = await supabase

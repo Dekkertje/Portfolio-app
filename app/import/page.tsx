@@ -32,6 +32,7 @@ export default function ImportPage() {
   const [preview, setPreview] = useState<any[]>([])
   const [importComplete, setImportComplete] = useState(false)
   const [importedCount, setImportedCount] = useState(0)
+  const [txTypeCounts, setTxTypeCounts] = useState({ buy: 0, sell: 0, dividend: 0, unknown: 0 })
   const [uniqueProducts, setUniqueProducts] = useState<{
     isin: string
     product: string
@@ -256,7 +257,9 @@ export default function ImportPage() {
         .from("portfolios")
         .select("id")
         .eq("user_id", userData.user.id)
-        .single()
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle()
 
       if (!portfolio) {
         const { data: created } = await supabase
@@ -307,7 +310,7 @@ export default function ImportPage() {
             transaction_fee: parseEuropeanNumber(row.transactiekosten),
             total_eur: totalEur,
             order_id: row.orderId || null,
-            transaction_type: isDividend ? "dividend" : detectTransactionType(localValue),
+            transaction_type: isDividend ? "dividend" : detectTransactionType(localValue, totalEur),
           }
 
           return tx
@@ -393,10 +396,22 @@ export default function ImportPage() {
           currency: p.currency
         }))
 
+        const typeCounts = transactionsToInsert.reduce(
+          (acc, t) => {
+            const type = t.transaction_type as keyof typeof acc
+            acc[type] = (acc[type] || 0) + 1
+            return acc
+          },
+          { buy: 0, sell: 0, dividend: 0, unknown: 0 } as Record<string, number>
+        )
+        setTxTypeCounts({ buy: typeCounts.buy || 0, sell: typeCounts.sell || 0, dividend: typeCounts.dividend || 0, unknown: typeCounts.unknown || 0 })
         setImportedCount(transactionsToInsert.length)
         setUniqueProducts(products)
         setImportComplete(true)
         showToast(`${transactionsToInsert.length} transacties succesvol geïmporteerd!`, "success")
+        if (typeCounts.unknown > 0) {
+          showToast(`⚠️ ${typeCounts.unknown} transacties konden niet worden geclassificeerd. Controleer de CSV.`, "error")
+        }
       }
     } catch (error: any) {
       // eslint-disable-next-line no-console
@@ -465,9 +480,15 @@ export default function ImportPage() {
                 </svg>
               </div>
               <h2 className="mb-2 text-2xl font-bold text-green-900">Import Succesvol!</h2>
-              <p className="mb-6 text-green-700">
+              <p className="mb-3 text-green-700">
                 {importedCount} transacties geïmporteerd van {uniqueProducts.length} unieke aandelen.
               </p>
+              <div className="mb-4 flex justify-center gap-4 text-sm">
+                <span className="rounded-full bg-green-100 px-3 py-1 text-green-800">↑ {txTypeCounts.buy} aankopen</span>
+                <span className="rounded-full bg-blue-100 px-3 py-1 text-blue-800">↓ {txTypeCounts.sell} verkopen</span>
+                {txTypeCounts.dividend > 0 && <span className="rounded-full bg-yellow-100 px-3 py-1 text-yellow-800">€ {txTypeCounts.dividend} dividenden</span>}
+                {txTypeCounts.unknown > 0 && <span className="rounded-full bg-red-100 px-3 py-1 text-red-800">⚠ {txTypeCounts.unknown} onbekend</span>}
+              </div>
 
               <div className="mb-6 rounded-lg bg-white p-4">
                 <p className="mb-4 text-sm text-slate-700">
