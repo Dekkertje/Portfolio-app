@@ -502,8 +502,8 @@ export default function ImportPage() {
                 handleApproveTicker(s)
               }}
               onEdit={(s) => setEditingTicker(s)}
-              onSkip={() => setShowPendingReview(false)}
-              onComplete={() => { setShowPendingReview(false); setPendingTickers([]) }}
+              onSkip={(s) => setPendingTickers(prev => prev.filter(t => t.isin !== s.isin))}
+              onContinue={() => { setShowPendingReview(false); setPendingTickers([]) }}
             />
           </div>
         )}
