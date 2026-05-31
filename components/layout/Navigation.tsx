@@ -31,7 +31,6 @@ const navigation: NavItem[] = [
   { name: "Dashboard",    href: "/dashboard",               icon: LayoutDashboard },
   { name: "Dividenden",   href: "/dashboard/dividenden",    icon: CalendarDays    },
   { name: "Afgesloten",   href: "/dashboard/gesloten",      icon: CheckSquare     },
-  { name: "Tickers",      href: "/dashboard/tickers",       icon: Tag             },
   { name: "Transacties",  href: "/transactions",            icon: ArrowLeftRight  },
   { name: "Importeren",   href: "/import",                  icon: Upload          },
   { name: "Politicians",  href: "/politicians",             icon: Users           },

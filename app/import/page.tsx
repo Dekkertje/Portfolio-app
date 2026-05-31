@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Papa from "papaparse"
 import { supabase, authFetch } from "@/lib/supabase/client"
 import { useToast } from "@/components/ui/Toast"
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button"
 import { Card, CardHeader } from "@/components/ui/Card"
 import { parseEuropeanNumber, parseDegiroDate, detectTransactionType } from "@/lib/utils"
 import { DashboardLayout } from "@/components/layout/DashboardLayout"
-import { Upload } from "lucide-react"
+import { Upload, AlertCircle } from "lucide-react"
 import { TickerMappingReview } from "@/components/import/TickerMappingReview"
 import { TickerEditModal } from "@/components/import/TickerEditModal"
 
@@ -44,7 +44,22 @@ export default function ImportPage() {
   const [showTickerReview, setShowTickerReview] = useState(false)
   const [tickerSuggestions, setTickerSuggestions] = useState<TickerSuggestion[]>([])
   const [editingTicker, setEditingTicker] = useState<TickerSuggestion | null>(null)
+  const [pendingTickers, setPendingTickers] = useState<TickerSuggestion[]>([])
+  const [showPendingReview, setShowPendingReview] = useState(false)
   const { showToast } = useToast()
+
+  useEffect(() => {
+    async function loadPending() {
+      try {
+        const res = await authFetch("/api/ticker-mapping?pending=1")
+        if (res.ok) {
+          const data = await res.json()
+          setPendingTickers(data.suggestions ?? [])
+        }
+      } catch {}
+    }
+    loadPending()
+  }, [])
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] || null
@@ -442,6 +457,56 @@ export default function ImportPage() {
       {/* Main Content */}
       <div className="p-8">
         <div className="mx-auto max-w-5xl space-y-6">
+
+        {/* Pending tickers banner */}
+        {pendingTickers.length > 0 && !showPendingReview && (
+          <div className="flex items-center justify-between rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-500 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">
+                  {pendingTickers.length} aandel{pendingTickers.length !== 1 ? "en" : ""} zonder bevestigde ticker
+                </p>
+                <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">
+                  Koersen worden pas opgehaald nadat je de ticker-koppeling hebt goedgekeurd.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowPendingReview(true)}
+              className="shrink-0 rounded-lg bg-amber-500 px-4 py-2 text-xs font-semibold text-white hover:bg-amber-400 transition-colors"
+            >
+              Controleer nu
+            </button>
+          </div>
+        )}
+
+        {/* Inline pending ticker review */}
+        {showPendingReview && pendingTickers.length > 0 && (
+          <div className="rounded-xl border border-slate-200 dark:border-[#1a2744] bg-white dark:bg-[#0b1120] p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                Openstaande ticker-koppelingen
+              </h2>
+              <button
+                onClick={() => setShowPendingReview(false)}
+                className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                Verbergen
+              </button>
+            </div>
+            <TickerMappingReview
+              suggestions={pendingTickers}
+              onApprove={(s) => {
+                setPendingTickers(prev => prev.filter(t => t.isin !== s.isin))
+                handleApproveTicker(s)
+              }}
+              onEdit={(s) => setEditingTicker(s)}
+              onSkip={() => setShowPendingReview(false)}
+              onComplete={() => { setShowPendingReview(false); setPendingTickers([]) }}
+            />
+          </div>
+        )}
 
         <Card className="mb-6">
           <CardHeader
