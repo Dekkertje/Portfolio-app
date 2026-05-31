@@ -2,9 +2,14 @@
 
 import { useEffect, useState } from "react"
 import { DashboardLayout } from "@/components/layout/DashboardLayout"
-import { authFetch } from "@/lib/supabase/client"
+import { authFetch, supabase } from "@/lib/supabase/client"
 import { Bell, Plus, Trash2, Pause, Play, Mail, Smartphone, MonitorSmartphone, ChevronDown } from "lucide-react"
 import { useToast } from "@/components/ui/Toast"
+
+type Position = {
+  ticker: string
+  product: string
+}
 
 type RuleType = "price_above" | "price_below" | "pct_change_up" | "pct_change_down" | "digest" | "dividend"
 type Channel = "in_app" | "email" | "push"
@@ -60,6 +65,7 @@ const DEFAULT_FORM = {
 
 export default function NotificatiesPage() {
   const [rules, setRules] = useState<Rule[]>([])
+  const [positions, setPositions] = useState<Position[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(DEFAULT_FORM)
@@ -76,7 +82,72 @@ export default function NotificatiesPage() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  async function loadPositions() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+
+    // Get portfolio id
+    const { data: portfolio } = await supabase
+      .from("portfolios").select("id").eq("user_id", session.user.id).limit(1).maybeSingle()
+    if (!portfolio) return
+
+    // Get open positions with their yahoo symbol from prices table
+    const { data: transactions } = await supabase
+      .from("transactions")
+      .select("product, isin")
+      .eq("portfolio_id", portfolio.id)
+      .not("transaction_type", "ilike", "%dividend%")
+
+    if (!transactions) return
+
+    // Count quantities to find open positions
+    const qty: Record<string, number> = {}
+    const names: Record<string, string> = {}
+    for (const tx of transactions) {
+      const key = tx.isin ?? tx.product
+      names[key] = tx.product
+    }
+
+    // Get ticker mappings for these ISINs
+    const isins = [...new Set(transactions.map(t => t.isin).filter(Boolean))]
+    const { data: prices } = await supabase
+      .from("prices")
+      .select("isin, yahoo_symbol")
+      .in("isin", isins)
+
+    const isinToTicker: Record<string, string> = {}
+    for (const p of prices ?? []) {
+      if (p.isin && p.yahoo_symbol) isinToTicker[p.isin] = p.yahoo_symbol
+    }
+
+    // Also get manual positions
+    const { data: manual } = await supabase
+      .from("manual_positions")
+      .select("product_name, yahoo_symbol")
+      .eq("portfolio_id", portfolio.id)
+
+    const result: Position[] = []
+    const seen = new Set<string>()
+
+    for (const tx of transactions) {
+      const ticker = tx.isin ? isinToTicker[tx.isin] : null
+      if (ticker && !seen.has(ticker)) {
+        seen.add(ticker)
+        result.push({ ticker, product: tx.product })
+      }
+    }
+
+    for (const m of manual ?? []) {
+      if (!seen.has(m.yahoo_symbol)) {
+        seen.add(m.yahoo_symbol)
+        result.push({ ticker: m.yahoo_symbol, product: m.product_name })
+      }
+    }
+
+    setPositions(result.sort((a, b) => a.product.localeCompare(b.product)))
+  }
+
+  useEffect(() => { load(); loadPositions() }, [])
 
   async function save() {
     setSaving(true)
@@ -217,14 +288,22 @@ export default function NotificatiesPage() {
               {/* Ticker */}
               {needsTicker && (
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-500 uppercase tracking-wider">Ticker</label>
-                  <input
-                    type="text"
-                    value={form.ticker}
-                    onChange={e => setForm(f => ({ ...f, ticker: e.target.value }))}
-                    placeholder="Bijv. ASML.AS, NVDA"
-                    className="w-full rounded-lg border border-slate-200 dark:border-[#1a2744] bg-slate-50 dark:bg-[#0d1829] px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-lime-500/40"
-                  />
+                  <label className="mb-1.5 block text-xs font-medium text-slate-500 uppercase tracking-wider">Aandeel</label>
+                  <div className="relative">
+                    <select
+                      value={form.ticker}
+                      onChange={e => setForm(f => ({ ...f, ticker: e.target.value }))}
+                      className="w-full appearance-none rounded-lg border border-slate-200 dark:border-[#1a2744] bg-slate-50 dark:bg-[#0d1829] px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-lime-500/40"
+                    >
+                      <option value="">— Kies een aandeel —</option>
+                      {positions.map(p => (
+                        <option key={p.ticker} value={p.ticker}>
+                          {p.product} ({p.ticker})
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-slate-400" />
+                  </div>
                 </div>
               )}
 
