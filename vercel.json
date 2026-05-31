@@ -7,7 +7,7 @@
   "crons": [
     {
       "path": "/api/notifications/trigger?secret=dekkertracker-cron-2026",
-      "schedule": "*/5 9-17 * * 1-5"
+      "schedule": "0 16 * * 1-5"
     }
   ]
 }
