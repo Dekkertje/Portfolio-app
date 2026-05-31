@@ -3,6 +3,12 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "crons": [
+    {
+      "path": "/api/notifications/trigger?secret=REPLACE_WITH_CRON_SECRET",
+      "schedule": "*/5 9-17 * * 1-5"
+    }
+  ]
 }
 

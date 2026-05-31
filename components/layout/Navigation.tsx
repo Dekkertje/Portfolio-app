@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { LayoutDashboard, ArrowLeftRight, Upload, LogOut, TrendingUp, Users, Moon, Sun, Settings, User, Eye, EyeOff, ChevronLeft, ChevronRight, CalendarDays, CheckSquare, Tag, Bell, X, CheckCheck } from "lucide-react"
-import { supabase } from "@/lib/supabase/client"
+import { supabase, authFetch } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { useTheme } from "@/contexts/ThemeContext"
 import { usePrivacy } from "@/contexts/PrivacyContext"
@@ -35,6 +35,7 @@ const navigation: NavItem[] = [
   { name: "Transacties",  href: "/transactions",            icon: ArrowLeftRight  },
   { name: "Importeren",   href: "/import",                  icon: Upload          },
   { name: "Politicians",  href: "/politicians",             icon: Users           },
+  { name: "Notificaties", href: "/notificaties",            icon: Bell            },
   { name: "Instellingen", href: "/settings",                icon: Settings        },
 ]
 
@@ -65,11 +66,12 @@ export function Navigation() {
   useEffect(() => {
     async function loadNotifications() {
       try {
-        const res = await fetch("/api/notifications")
+        const res = await authFetch("/api/notifications/events")
         if (!res.ok) return
         const data = await res.json()
-        setNotifications(data.notifications ?? [])
-        setUnreadCount(data.unread ?? 0)
+        const events = data.events ?? []
+        setNotifications(events)
+        setUnreadCount(events.filter((n: { is_read: boolean }) => !n.is_read).length)
       } catch { /* non-critical */ }
     }
     loadNotifications()
@@ -88,13 +90,13 @@ export function Navigation() {
   }, [showNotifications])
 
   async function markAllRead() {
-    await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ all: true }) })
+    await authFetch("/api/notifications/events", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) })
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
     setUnreadCount(0)
   }
 
   async function markRead(id: string) {
-    await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) })
+    await authFetch("/api/notifications/events", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: [id] }) })
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
     setUnreadCount(prev => Math.max(0, prev - 1))
   }
@@ -306,7 +308,10 @@ export function Navigation() {
             }`}>
               <div className="flex items-center justify-between border-b border-[#1a2744] px-4 py-3">
                 <h3 className="text-sm font-semibold text-slate-100">Notificaties</h3>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                  <Link href="/notificaties" onClick={() => setShowNotifications(false)} className="text-xs text-lime-400 hover:text-lime-300 transition-colors">
+                    Beheer
+                  </Link>
                   {unreadCount > 0 && (
                     <button onClick={markAllRead} title="Alles gelezen" className="text-slate-400 hover:text-lime-400 transition-colors">
                       <CheckCheck className="h-4 w-4" />
