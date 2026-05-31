@@ -3,13 +3,19 @@ import { createServiceSupabaseClient } from "@/lib/supabase/server"
 import webpush from "web-push"
 import { Resend } from "resend"
 
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT!,
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!,
-)
+function initWebPush() {
+  if (process.env.VAPID_SUBJECT && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    webpush.setVapidDetails(
+      process.env.VAPID_SUBJECT,
+      process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+      process.env.VAPID_PRIVATE_KEY,
+    )
+  }
+}
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+function getResend() {
+  return process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
+}
 
 type Rule = {
   id: string
@@ -32,6 +38,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
+  initWebPush()
+  const resend = getResend()
   const supabase = createServiceSupabaseClient()
 
   // 1. Fetch all active price/pct rules (digest handled separately)
@@ -101,7 +109,7 @@ export async function GET(request: Request) {
 
     // Dispatch to each channel
     for (const channel of rule.channels) {
-      await dispatch(supabase, rule, channel, title, body, { current_price: current, change_pct: changePct })
+      await dispatch(supabase, resend, rule, channel, title, body, { current_price: current, change_pct: changePct })
     }
     triggered++
   }
@@ -111,6 +119,7 @@ export async function GET(request: Request) {
 
 async function dispatch(
   supabase: ReturnType<typeof createServiceSupabaseClient>,
+  resend: Resend | null,
   rule: Rule,
   channel: string,
   title: string,
@@ -150,15 +159,9 @@ async function dispatch(
   }
 
   if (channel === "email") {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name")
-      .eq("id", rule.user_id)
-      .single()
-
     const { data: userData } = await supabase.auth.admin.getUserById(rule.user_id)
     const email = userData?.user?.email
-    if (!email || !process.env.RESEND_API_KEY || process.env.RESEND_API_KEY.startsWith("re_placeholder")) return
+    if (!email || !resend) return
 
     await resend.emails.send({
       from: "DekkerTracker <noreply@dekkertracker.nl>",
