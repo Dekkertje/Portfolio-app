@@ -804,12 +804,16 @@ export default function DashboardPage() {
         try {
           const res  = await fetch(`/api/portfolio-intraday?portfolio_id=${portfolioId}`)
           const data = await res.json()
+          // Anchor intraday pnl to yesterday's closing portfolio value so the
+          // W/V chart shows gain/loss vs. previous close, not vs. cost basis.
+          // yesterdayValue = currentValue - dailyPnL (which is based on previousClose).
+          const yesterdayValue = metrics.totalValue - metrics.totalDailyPnL
           const pts: PerfPoint[] = (data.points ?? []).map((p: { time: string; value: number }) => ({
             date:     p.time,
             isoDate:  p.time,   // re-used as X-axis key in intraday mode
             value:    p.value,
             invested: metrics.totalCost,
-            pnl:      p.value - metrics.totalCost,
+            pnl:      p.value - yesterdayValue,
           }))
           setPerformanceData(pts.length > 0 ? pts : [])
         } catch {
