@@ -121,41 +121,67 @@ export default function DashboardPage() {
         .from("portfolios").select("target_amount").eq("id", portfolio.id).maybeSingle()
       if (portfolioData?.target_amount != null) setPortfolioTargetAmount(Number(portfolioData.target_amount))
 
-      const { data: transactions, error: txError } = await supabase
-        .from("transactions")
-        .select("*")
-        .eq("portfolio_id", portfolio.id)
-        .order("trade_date", { ascending: true })
-        .order("trade_time", { ascending: true })
-
-      const { data: prices, error: priceError } = await supabase
-        .from("prices")
-        .select("*")
-        .order("price_date", { ascending: false })
-
-      // Fetch securities data for earnings dates and dividend info
-      const { data: securities } = await supabase
-        .from("securities")
-        .select("isin, next_earnings_date, annual_dividend, dividend_frequency")
-
-      // Fetch total dividends received per position
-      const { data: dividendData } = await supabase
-        .from("transactions")
-        .select("product, isin, total_eur")
-        .eq("portfolio_id", portfolio.id)
-        .ilike("transaction_type", "%dividend%")
-
-      // Fetch manual positions
-      const { data: manualPositions } = await supabase
-        .from("manual_positions")
-        .select("*")
-        .eq("portfolio_id", portfolio.id)
+      // These three queries are independent of each other — run them in parallel
+      // instead of one-after-another to cut the load waterfall.
+      const [
+        { data: transactions, error: txError },
+        { data: manualPositions },
+        { data: securities },
+      ] = await Promise.all([
+        supabase
+          .from("transactions")
+          .select("*")
+          .eq("portfolio_id", portfolio.id)
+          .order("trade_date", { ascending: true })
+          .order("trade_time", { ascending: true }),
+        supabase
+          .from("manual_positions")
+          .select("*")
+          .eq("portfolio_id", portfolio.id),
+        supabase
+          .from("securities")
+          .select("isin, next_earnings_date, annual_dividend, dividend_frequency"),
+      ])
 
       if (txError || !transactions) {
         showToast("Fout bij laden van transacties", "error")
         setLoading(false)
         return
       }
+
+      // Dividends received are just a subset of the transactions we already
+      // fetched above — no need for a separate round trip to the same table.
+      const dividendData = (transactions as Transaction[]).filter((tx) =>
+        tx.transaction_type?.toLowerCase().includes("dividend"),
+      )
+
+      // Only fetch the latest price for products/ISINs actually held in this
+      // portfolio, instead of pulling the entire (ever-growing) prices table.
+      type IsinProductRow = { isin?: string | null; product?: string | null; product_name?: string | null }
+      const isinProductRows: IsinProductRow[] = [...transactions, ...(manualPositions ?? [])]
+
+      const isins = [...new Set(
+        isinProductRows
+          .map((row) => row.isin)
+          .filter((isin): isin is string => Boolean(isin)),
+      )]
+      const productsWithoutIsin = [...new Set(
+        isinProductRows
+          .filter((row) => !row.isin)
+          .map((row) => row.product ?? row.product_name)
+          .filter((p): p is string => Boolean(p)),
+      )]
+
+      const [byIsin, byProduct] = await Promise.all([
+        isins.length
+          ? supabase.from("prices").select("*").in("isin", isins).order("price_date", { ascending: false })
+          : Promise.resolve({ data: [] as Price[], error: null }),
+        productsWithoutIsin.length
+          ? supabase.from("prices").select("*").is("isin", null).in("product", productsWithoutIsin).order("price_date", { ascending: false })
+          : Promise.resolve({ data: [] as Price[], error: null }),
+      ])
+      const prices = [...(byIsin.data ?? []), ...(byProduct.data ?? [])]
+      const priceError = byIsin.error || byProduct.error
 
       // Build securities map by ISIN
       const securitiesMap: Record<string, { nextEarningsDate?: string, annualDividend?: number, dividendFrequency?: string }> = {}
@@ -517,7 +543,9 @@ export default function DashboardPage() {
   async function handleRefreshPrices(silent = false) {
     setRefreshing(true)
     try {
-      const res = await authFetch("/api/refresh-prices", { method: "POST" })
+      // Manual clicks (silent=false) force a real refresh; background calls
+      // skip products whose price is already fresh for today.
+      const res = await authFetch(`/api/refresh-prices?force=${!silent}`, { method: "POST" })
       const data = await res.json()
 
       if (!res.ok) {
@@ -546,13 +574,15 @@ export default function DashboardPage() {
     }
   }
 
-  // Auto-refresh prices every 10 seconds
+  // Auto-refresh prices periodically. This is now cheap even at a short
+  // interval since /api/refresh-prices skips products already fresh for
+  // today, but there's no reason to poll more often than every few minutes.
   useEffect(() => {
     if (!autoRefreshEnabled) return
 
     const interval = setInterval(() => {
       handleRefreshPrices(true) // Silent refresh
-    }, 60000) // 60 seconds
+    }, 3 * 60 * 1000) // 3 minutes
 
     return () => clearInterval(interval)
   }, [autoRefreshEnabled])
@@ -833,22 +863,21 @@ export default function DashboardPage() {
           const { snapshots } = await res.json()
 
           if (snapshots && snapshots.length > 0) {
-            // Convert snapshots to chart points
-            // pnl = snap.total_return (unrealized + realized + dividends stored at snapshot time)
-            // fallback: value - invested (unrealized only) when total_return is not available
+            // Convert snapshots to chart points.
+            // Always use value - invested (unrealized only) for pnl so all data sources
+            // are consistent. Using snap.total_return (which includes all-time realized P&L)
+            // would inflate the period change whenever historical snapshots pre-date the
+            // realized-P&L tracking or when realized gains are large.
             const snapshotPoints: (PerfPoint & { isoDate: string })[] =
               snapshots.map((snap: any) => {
                 const value    = Number(snap.total_value)
                 const invested = Number(snap.total_cost)
-                const pnl      = snap.total_return != null
-                  ? Number(snap.total_return)
-                  : value - invested
                 return {
                   isoDate: snap.snapshot_date as string,
                   date:    new Date(snap.snapshot_date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
                   value,
                   invested,
-                  pnl,
+                  pnl: value - invested,
                 }
               })
 
@@ -881,7 +910,7 @@ export default function DashboardPage() {
                   date:     new Date(h.date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: '2-digit' }),
                   value:    h.value,
                   invested: h.cost,
-                  pnl:      h.pnl,
+                  pnl:      h.value - h.cost,  // unrealized only — consistent with snapshot points
                 }))
               if (realPre.length > 0) {
                 preTxPoints.splice(0, preTxPoints.length, ...realPre)
@@ -904,7 +933,7 @@ export default function DashboardPage() {
                 date:     new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
                 value:    metrics.totalValue,
                 invested: metrics.totalCost,
-                pnl:      metrics.totalReturn,
+                pnl:      metrics.unrealizedPnL,  // unrealized only — consistent with snapshot points
               })
             }
 
@@ -918,7 +947,7 @@ export default function DashboardPage() {
                 date:     new Date(h.date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: '2-digit' }),
                 value:    h.value,
                 invested: h.cost,
-                pnl:      h.pnl,
+                pnl:      h.value - h.cost,  // unrealized only — consistent with snapshot points
               }))
             const todayIso = new Date().toISOString().split('T')[0]
             if (filtered.length > 0 && todayIso <= periodEndIso && !filtered.some(p => p.isoDate === todayIso)) {
@@ -927,7 +956,7 @@ export default function DashboardPage() {
                 date:     new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
                 value:    metrics.totalValue,
                 invested: metrics.totalCost,
-                pnl:      metrics.totalReturn,
+                pnl:      metrics.unrealizedPnL,  // unrealized only — consistent with snapshot points
               })
             }
             setPerformanceData(filtered.length > 0 ? filtered : simulatedData)
@@ -1216,7 +1245,19 @@ export default function DashboardPage() {
                     </PrivacyText>
                   </p>
                 )}
-                {chartMode === "pnl" && (
+                {chartMode === "pnl" && selectedPeriod === "1D" && metrics.totalDailyPnL !== 0 && (
+                  // 1D: show daily gain based on previous close (not intraday-from-open)
+                  <p className={`text-sm font-medium mt-0.5 ${
+                    metrics.totalDailyPnL >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                  }`}>
+                    <PrivacyText>
+                      {metrics.totalDailyPnL >= 0 ? "+" : ""}{formatCurrency(metrics.totalDailyPnL)}
+                      {" "}({metrics.totalDailyPnLPercent >= 0 ? "+" : ""}{metrics.totalDailyPnLPercent.toFixed(2)}%)
+                      {" "}dagwinst
+                    </PrivacyText>
+                  </p>
+                )}
+                {chartMode === "pnl" && selectedPeriod !== "1D" && periodMetrics.pnlChange !== 0 && (
                   <p className={`text-sm font-medium mt-0.5 ${
                     periodMetrics.pnlChange >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                   }`}>
