@@ -10,7 +10,13 @@ import { isCrypto, getCryptoYahooSymbol } from "@/lib/utils"
 // and stores them in the prices table.  Also refreshes dividend data and
 // caches today's USD/EUR rate in fx_rates.
 
-export async function POST() {
+export async function POST(request: Request) {
+  // "force=true" (the manual refresh button) always re-fetches every item.
+  // Silent/background calls (page load, 3-minute auto-refresh) skip products
+  // that already have a price for today — no point hitting Yahoo Finance again.
+  const { searchParams } = new URL(request.url)
+  const force = searchParams.get("force") === "true"
+
   // Use service-role client so API routes can write to prices/securities/fx_rates
   // without being blocked by RLS (these tables have no authenticated INSERT policy).
   const supabase = createServiceSupabaseClient()
@@ -30,18 +36,46 @@ export async function POST() {
 
   // Deduplicate on (product, isin)
   const seen  = new Set<string>()
-  const items = allItems.filter(item => {
+  const dedupedItems = allItems.filter(item => {
     const key = `${item.product}__${item.isin ?? item.yahooSymbol ?? ""}`
     if (seen.has(key)) return false
     seen.add(key)
     return true
   })
 
-  // ── Resolve USD/EUR rate once for the whole batch ───────────────────────────
-  const { rate: usdToEur } = await getFXRate("USD", "EUR", supabase)
+  // ── Skip products already refreshed today (unless forced) ──────────────────
+  let items = dedupedItems
+  if (!force && dedupedItems.length) {
+    const today = new Date().toISOString().split("T")[0]
+    const { data: freshToday } = await supabase
+      .from("prices")
+      .select("product")
+      .eq("price_date", today)
+      .in("product", dedupedItems.map(i => i.product))
+
+    const freshProducts = new Set((freshToday ?? []).map(p => p.product))
+    items = dedupedItems.filter(item => !freshProducts.has(item.product))
+  }
+
+  if (items.length === 0) {
+    return NextResponse.json({
+      success: true,
+      inserted: 0,
+      skipped: 0,
+      errors: [],
+      dividendStats: [],
+      message: "Koersen zijn al up-to-date voor vandaag.",
+    })
+  }
+
+  // ── Resolve FX rates once for the whole batch ──────────────────────────────
+  const [{ rate: usdToEur }, { rate: gbpToEur }] = await Promise.all([
+    getFXRate("USD", "EUR", supabase),
+    getFXRate("GBP", "EUR", supabase),
+  ])
 
   // ── Process each product ────────────────────────────────────────────────────
-  const results = await Promise.allSettled(items.map(item => processItem(item, usdToEur, supabase)))
+  const results = await Promise.allSettled(items.map(item => processItem(item, usdToEur, gbpToEur, supabase)))
 
   let inserted = 0
   let skipped  = 0
@@ -84,6 +118,7 @@ type ProcessResult =
 async function processItem(
   item: { product: string; isin: string | null; yahooSymbol: string | null },
   usdToEur: number,
+  gbpToEur: number,
   supabase: ReturnType<typeof createServerSupabaseClient> extends Promise<infer T> ? T : never
 ): Promise<ProcessResult> {
 
@@ -112,20 +147,24 @@ async function processItem(
     return { skipped: true, reason: `No symbol: ${item.product} (ISIN: ${item.isin ?? "N/A"})` }
   }
 
-  // ── Fetch quote ───────────────────────────────────────────────────────────
-  const quote = await getQuote(yahooSymbol)
+  // ── Fetch quote + dividend info in parallel ────────────────────────────────
+  // These are two independent Yahoo Finance calls — no need to wait for the
+  // quote to finish before starting the dividend lookup.
+  const [quote, divInfo] = await Promise.all([getQuote(yahooSymbol), getDividendInfo(yahooSymbol)])
 
   if (!quote) {
     return { skipped: true, reason: `No quote for ${yahooSymbol} (${item.product})` }
   }
 
   // ── Currency conversion + pence fix ──────────────────────────────────────
+  // normalisePencePrice handles GBp → GBP (÷100); then we convert to EUR.
   const isUsd = quote.currency === "USD"
-  const rate  = isUsd ? usdToEur : 1
+  const isGBp = quote.currency === "GBp" || quote.currency === "GBP"
+  const rate  = isUsd ? usdToEur : isGBp ? gbpToEur : 1
 
-  const price         = normalisePencePrice(quote.price,     quote.currency) * rate
-  // Use today's opening price — "dag winst/verlies" = current price vs market open
-  const previousClose = normalisePencePrice(quote.openPrice, quote.currency) * rate
+  const price         = normalisePencePrice(quote.price,         quote.currency) * rate
+  // Store yesterday's closing price so "dag" P&L = current vs previous close.
+  const previousClose = normalisePencePrice(quote.previousClose, quote.currency) * rate
 
   // ── Persist price ─────────────────────────────────────────────────────────
   // Delete-then-insert to avoid unique constraint conflicts on same-day refresh
@@ -149,12 +188,14 @@ async function processItem(
   // ── Refresh dividend data ─────────────────────────────────────────────────
   let dividendResult: DividendStat | undefined
 
-  const divInfo = await getDividendInfo(yahooSymbol)
   if (divInfo && divInfo.annualDividendRate > 0) {
     const annualEur = isUsd
       ? divInfo.annualDividendRate * usdToEur
+      : isGBp
+      ? normalisePencePrice(divInfo.annualDividendRate, quote.currency) * gbpToEur
       : divInfo.annualDividendRate
 
+    // Frequency: quarterly for USD, annual for EUR, monthly for GBP income trusts
     const frequency = isUsd ? "quarterly" : "annual"
 
     dividendResult = { product: item.product, dividend: annualEur, frequency }

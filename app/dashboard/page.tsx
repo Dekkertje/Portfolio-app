@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/Button"
 import { useToast } from "@/components/ui/Toast"
 import { RefreshCw, Plus, DollarSign, BarChart2 } from "lucide-react"
 import { Transaction, Price, Position } from "@/lib/types"
-import { formatCurrency, isETF, isCrypto, getSector, generatePerformanceData, BenchmarkType } from "@/lib/utils"
+import { formatCurrency, isETF, isCrypto, getSector, BenchmarkType } from "@/lib/utils"
 import { PeriodFilter, Period } from "@/components/dashboard/PeriodFilter"
 import { BenchmarkChart } from "@/components/dashboard/BenchmarkChart"
 import { BenchmarkSelector } from "@/components/dashboard/BenchmarkSelector"
@@ -231,14 +231,31 @@ export default function DashboardPage() {
 
       // Build a per-date cost-basis timeline from transactions so we can show
       // portfolio history for dates before the first portfolio_snapshot exists.
+      // On sells: subtract the cost basis of sold shares (not the sale proceeds).
       let runningCost = 0
       const costByDate = new Map<string, number>()
+      const runningQty: Record<string, number>  = {}
+      const runningInv: Record<string, number>  = {}
 
       for (const tx of transactions as Transaction[]) {
         if (!tx.trade_date) continue
-        const total = Math.abs(Number(tx.total_eur || 0))
-        if (tx.transaction_type === 'buy')  runningCost += total
-        else if (tx.transaction_type === 'sell') runningCost = Math.max(0, runningCost - total)
+        const key     = `${tx.product}__${tx.isin || ""}`
+        const absQty  = Math.abs(Number(tx.quantity  || 0))
+        const total   = Math.abs(Number(tx.total_eur || 0))
+
+        if (tx.transaction_type === 'buy') {
+          runningQty[key]  = (runningQty[key]  ?? 0) + absQty
+          runningInv[key]  = (runningInv[key]  ?? 0) + total
+          runningCost     += total
+        } else if (tx.transaction_type === 'sell') {
+          const qty   = runningQty[key] ?? 0
+          const inv   = runningInv[key] ?? 0
+          const avgCost    = qty > 0 ? inv / qty : 0
+          const costOfSale = avgCost * absQty
+          runningQty[key]  = Math.max(0, qty - absQty)
+          runningInv[key]  = Math.max(0, inv - costOfSale)
+          runningCost      = Math.max(0, runningCost - costOfSale)
+        }
         costByDate.set(tx.trade_date, runningCost)
       }
 
@@ -824,17 +841,8 @@ export default function DashboardPage() {
 
       setIsIntraday(false)
 
-      // Always generate simulated data as fallback first
-      const simulatedData: PerfPoint[] = generatePerformanceData(
-        metrics.totalCost,
-        metrics.totalValue,
-        selectedPeriod,
-        customStartDate,
-        customEndDate
-      )
-
       if (!portfolioId) {
-        setPerformanceData(simulatedData)
+        setPerformanceData([])
         return
       }
 
@@ -937,7 +945,7 @@ export default function DashboardPage() {
                 date:     new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
                 value:    metrics.totalValue,
                 invested: metrics.totalCost,
-                pnl:      metrics.unrealizedPnL,  // unrealized only — consistent with snapshot points
+                pnl:      metrics.totalValue - metrics.totalCost,
               })
             }
 
@@ -960,22 +968,20 @@ export default function DashboardPage() {
                 date:     new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
                 value:    metrics.totalValue,
                 invested: metrics.totalCost,
-                pnl:      metrics.unrealizedPnL,  // unrealized only — consistent with snapshot points
+                pnl:      metrics.totalValue - metrics.totalCost,
               })
             }
-            setPerformanceData(filtered.length > 0 ? filtered : simulatedData)
+            setPerformanceData(filtered.length > 0 ? filtered : [])
           } else {
-            // No snapshots and no history — fall back to simulated data
-            setPerformanceData(simulatedData)
+            // No snapshots and no history — show empty (no fake data)
+            setPerformanceData([])
           }
         } else {
-          // Fetch failed, use simulated data
-          setPerformanceData(simulatedData)
+          setPerformanceData([])
         }
       } catch (error) {
         console.error('Error loading performance data:', error)
-        // Fallback to simulated data on error
-        setPerformanceData(simulatedData)
+        setPerformanceData([])
       }
     }
 

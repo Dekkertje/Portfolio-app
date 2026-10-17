@@ -89,8 +89,11 @@ export async function GET(req: NextRequest) {
     )
   ).filter((r): r is Resolved => r !== null)
 
-  // ── FX rate ────────────────────────────────────────────────────────────────
-  const { rate: usdToEur } = await getFXRate("USD", "EUR", supabase)
+  // ── FX rates ───────────────────────────────────────────────────────────────
+  const [{ rate: usdToEur }, { rate: gbpToEur }] = await Promise.all([
+    getFXRate("USD", "EUR", supabase),
+    getFXRate("GBP", "EUR", supabase),
+  ])
 
   // ── Fetch intraday (5m/1d) for each symbol ─────────────────────────────────
   type RawPoint = { ts: number; price: number; currency: string }
@@ -149,7 +152,8 @@ export async function GET(req: NextRequest) {
       if (price <= 0) continue
 
       const rate = currency === "USD" ? usdToEur
-                 : currency === "GBp" ? 0.01   // pence → pounds
+                 : currency === "GBp" ? 0.01 * gbpToEur   // pence → pounds → EUR
+                 : currency === "GBP" ? gbpToEur           // pounds → EUR
                  : 1
 
       value += qty * price * rate
