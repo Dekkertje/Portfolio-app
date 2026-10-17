@@ -32,9 +32,9 @@ function DrawdownIcon({ pct }: { pct: number }) {
 function ExposureBar({ pct }: { pct: number }) {
   const capped = Math.min(Math.max(pct, 0), 100)
   return (
-    <div className="mt-1.5 h-2 w-full rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+    <div className="mt-1.5 h-2 w-full rounded-full bg-slate-100 dark:bg-[#0b1120] overflow-hidden">
       <div
-        className="h-full rounded-full bg-indigo-500 transition-all duration-500"
+        className="h-full rounded-full bg-gradient-to-r from-lime-500/70 to-lime-500 transition-all duration-700 shadow-sm shadow-lime-500/20"
         style={{ width: `${capped}%` }}
       />
     </div>
@@ -53,7 +53,7 @@ function PanelRow({
   borderTop?: boolean
 }) {
   return (
-    <div className={`py-3 ${borderTop ? "border-t border-slate-100 dark:border-slate-700" : ""}`}>
+    <div className={`py-3 ${borderTop ? "border-t border-slate-100 dark:border-[#1a2744]" : ""}`}>
       <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
         {label}
       </p>
@@ -85,7 +85,7 @@ export function RiskPanel({
   const noData = maxDrawdownPct === 0
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-slate-800 p-5 shadow-sm ring-1 ring-slate-900/5 dark:ring-slate-700/50 h-full flex flex-col">
+    <div className="rounded-2xl bg-white dark:bg-[#0d1829] p-5 shadow-sm ring-1 ring-slate-900/5 dark:ring-[#1a2744]/80 h-full flex flex-col">
 
       {/* Max Drawdown */}
       <PanelRow label="Max Drawdown">
@@ -117,7 +117,7 @@ export function RiskPanel({
         <ExposureBar pct={exposurePct} />
         <div className="mt-1.5 flex justify-between text-xs text-slate-500 dark:text-slate-400">
           <PrivacyText>
-            <span className="text-indigo-600 dark:text-indigo-400 font-medium">{fmt(investedValue)}</span>
+            <span className="text-lime-600 dark:text-lime-400 font-medium">{fmt(investedValue)}</span>
             {" "}belegd
           </PrivacyText>
           {cashValue > 0 && (

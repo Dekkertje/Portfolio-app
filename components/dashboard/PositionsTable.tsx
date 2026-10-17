@@ -120,9 +120,9 @@ export function PositionsTable({ positions, onDeletePosition }: PositionsTablePr
       return <ArrowUpDown className="h-4 w-4 text-slate-400" />
     }
     if (sortDirection === 'asc') {
-      return <ArrowUp className="h-4 w-4 text-indigo-600" />
+      return <ArrowUp className="h-4 w-4 text-lime-500" />
     }
-    return <ArrowDown className="h-4 w-4 text-indigo-600" />
+    return <ArrowDown className="h-4 w-4 text-lime-500" />
   }
 
   return (
@@ -313,30 +313,30 @@ export function PositionsTable({ positions, onDeletePosition }: PositionsTablePr
                   <td className="px-6 py-4 text-right">
                     {position.dayChangeValue !== undefined ? (
                       <div className="flex flex-col items-end gap-0.5">
-                        <span className={`text-sm font-medium ${position.dayChangeValue >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        <span className={`text-sm font-medium ${position.dayChangeValue >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
                           {position.dayChangeValue >= 0 ? "+" : ""}{formatCurrency(position.dayChangeValue)}
                         </span>
                         {position.dayChangePercent !== undefined && (
-                          <span className={`text-xs ${position.dayChangePercent >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          <span className={`text-xs ${position.dayChangePercent >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
                             {position.dayChangePercent >= 0 ? "+" : ""}{position.dayChangePercent.toFixed(2)}%
                           </span>
                         )}
                       </div>
                     ) : (
-                      <span className="text-xs text-slate-300">-</span>
+                      <span className="text-xs text-slate-300 dark:text-slate-600">—</span>
                     )}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex flex-col items-end gap-1">
                       <div className="flex items-center gap-1">
                         {isProfit ? (
-                          <TrendingUp className="h-4 w-4 text-green-600" />
+                          <TrendingUp className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                         ) : (
-                          <TrendingDown className="h-4 w-4 text-red-600" />
+                          <TrendingDown className="h-4 w-4 text-red-500 dark:text-red-400" />
                         )}
                         <div
                           className={`text-sm font-semibold ${
-                            isProfit ? "text-green-600" : "text-red-600"
+                            isProfit ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
                           }`}
                         >
                           {formatCurrency(totalPnL)}
@@ -344,7 +344,7 @@ export function PositionsTable({ positions, onDeletePosition }: PositionsTablePr
                       </div>
                       <div className="flex items-center gap-2 text-xs">
                         <span
-                          className={isProfit ? "text-green-600" : "text-red-600"}
+                          className={isProfit ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}
                         >
                           {profitLossPercentage >= 0 ? "+" : ""}
                           {profitLossPercentage.toFixed(2)}%

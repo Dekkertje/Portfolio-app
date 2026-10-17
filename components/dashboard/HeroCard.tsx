@@ -140,7 +140,9 @@ export function HeroCard({
   const isReached  = targetAmount ? totalValue >= targetAmount : false
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-[#0d1829] p-6 shadow-sm ring-1 ring-slate-900/5 dark:ring-[#1a2744]/80">
+    <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-gradient-to-br dark:from-[#0d1829] dark:via-[#0d1829] dark:to-[#0b1528] p-6 shadow-sm ring-1 ring-slate-900/5 dark:ring-[#1a2744]/80">
+      {/* Subtle lime glow in the corner */}
+      <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-lime-500/5 blur-2xl" />
 
       {/* Top row: portfolio value + return badge */}
       <div className="flex items-start justify-between gap-4">

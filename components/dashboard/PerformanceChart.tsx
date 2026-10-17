@@ -294,7 +294,7 @@ export function PerformanceChart({ data, mode = "value", costBasis, intraday = f
 
   // ── Value mode (default) ──────────────────────────────────────────────────────
   const isAbove    = lastPoint ? lastPoint.value >= lastPoint.invested : true
-  const valueColor = isAbove ? "#10b981" : "#ef4444"
+  const valueColor = isAbove ? "#84cc16" : "#ef4444"   // lime-500 / red-500
   const valueGradId = isAbove ? "gradientGain" : "gradientLoss"
 
   return (
@@ -303,12 +303,12 @@ export function PerformanceChart({ data, mode = "value", costBasis, intraday = f
         <AreaChart data={data} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="gradientGain" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#10b981" stopOpacity={0.25} />
-              <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
+              <stop offset="5%"  stopColor="#84cc16" stopOpacity={0.22} />
+              <stop offset="95%" stopColor="#84cc16" stopOpacity={0.01} />
             </linearGradient>
             <linearGradient id="gradientLoss" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%"  stopColor="#ef4444" stopOpacity={0.20} />
-              <stop offset="95%" stopColor="#ef4444" stopOpacity={0.02} />
+              <stop offset="95%" stopColor="#ef4444" stopOpacity={0.01} />
             </linearGradient>
           </defs>
 

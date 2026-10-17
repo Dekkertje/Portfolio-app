@@ -181,7 +181,7 @@ export default function SettingsPage() {
 
   return (
     <DashboardLayout>
-      <div className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-8 py-6">
+      <div className="border-b border-slate-200 dark:border-[#1a2744] bg-white dark:bg-[#0b1120] px-8 py-6">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Instellingen</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Beheer je profiel en voorkeuren
@@ -189,12 +189,12 @@ export default function SettingsPage() {
       </div>
 
       <div className="p-8">
-        <div className="max-w-2xl bg-white dark:bg-slate-800 rounded-lg shadow dark:shadow-slate-900/50 p-8">
+        <div className="max-w-2xl bg-white dark:bg-[#0d1829] rounded-2xl shadow-sm ring-1 ring-slate-900/5 dark:ring-[#1a2744]/80 p-8">
           {/* Avatar Section */}
           <div className="mb-8">
             <h2 className="text-lg font-semibold mb-4 dark:text-slate-100">Profielfoto</h2>
             <div className="flex items-center gap-6">
-              <div className="relative w-24 h-24 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-700">
+              <div className="relative w-24 h-24 rounded-full overflow-hidden bg-slate-200 dark:bg-[#1a2744]">
                 {profile?.avatar_url ? (
                   <Image
                     src={profile.avatar_url}
@@ -244,7 +244,7 @@ export default function SettingsPage() {
                 type="email"
                 value={profile?.email || ""}
                 disabled
-                className="bg-slate-50 dark:bg-slate-900"
+                className="bg-slate-50 dark:bg-[#0b1120]"
               />
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 Je e-mailadres kan niet worden gewijzigd
