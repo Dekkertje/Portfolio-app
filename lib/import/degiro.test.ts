@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
-import { buildState } from "@/lib/core"
+import { applyEvent, buildState, emptyState, sortEvents } from "@/lib/core"
 import { classifyAccountDescription, degiroToLedger, latestBalance, parseDegiroAccount, parseDegiroTransactions } from "./degiro"
 
 const TX_HEADER =
@@ -83,8 +83,9 @@ describe("degiroToLedger", () => {
     expect(state.positions.get("US60937P1066")!.dividendsEur).toBeCloseTo(1.14 - 0.17, 6)
   })
 
-  it("telt een iDEAL-storting één keer, ondanks de reserveringen", () => {
+  it("telt een iDEAL-storting één keer, op de datum van de reservering", () => {
     expect(state.netDepositsEur).toBe(5000)
+    expect(result.events.find((e) => e.type === "deposit")!.date).toBe("2026-01-30")
   })
 
   it("geeft identieke id's bij opnieuw importeren", () => {
@@ -128,6 +129,17 @@ describe.runIf(txFile && accFile)("echte DEGIRO-export", () => {
     const balance = latestBalance(parseDegiroAccount(account))
     expect(balance).not.toBeNull()
     expect(Math.abs(state.cashEur - balance!)).toBeLessThan(1)
+  })
+
+  it("cash aan het eind van de dag wordt nooit diep negatief (stortingen vallen vóór de aankopen ermee)", () => {
+    const sorted = sortEvents(result.events)
+    const s = emptyState()
+    let min = 0
+    sorted.forEach((e, i) => {
+      applyEvent(s, e)
+      if (sorted[i + 1]?.date !== e.date) min = Math.min(min, s.cashEur)
+    })
+    expect(min).toBeGreaterThan(-100)
   })
 
   it("aantallen per positie kloppen met de som uit Transacties", () => {

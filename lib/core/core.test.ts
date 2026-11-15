@@ -122,6 +122,17 @@ describe("rendement", () => {
     expect(twr(points)).toBeCloseTo(0.21, 10)
   })
 
+  it("TWR: een restje van €0,10 vóór een grote storting blaast het rendement niet op", () => {
+    const points = [
+      { date: "2024-07-30", valueEur: 0.1, flowEur: 0 },
+      // storting 24.000 + aankoop; slotkoers ligt €40 boven de aankoopkoers
+      { date: "2024-07-31", valueEur: 24_040.1, flowEur: 24_000 },
+      { date: "2024-08-01", valueEur: 24_280.5, flowEur: 0 },
+    ]
+    const expected = (1 + 40 / 24_000.1) * (24_280.5 / 24_040.1) - 1
+    expect(twr(points)).toBeCloseTo(expected, 10)
+  })
+
   it("XIRR over een (schrikkel)jaar", () => {
     const r = xirr([
       { date: "2024-01-01", amount: -1000 },

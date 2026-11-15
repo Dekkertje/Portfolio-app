@@ -272,6 +272,28 @@ export function tradesToEvents(
   return { events, warnings }
 }
 
+/**
+ * Een iDEAL-storting staat er drie keer in: "Reservation iDEAL +X" (geld direct
+ * beschikbaar om mee te handelen), dagen later "iDEAL Deposit +X" en "Reservation iDEAL −X".
+ * Economisch komt het geld binnen op de reserveringsdatum — er wordt vaak al die dag
+ * mee gekocht. Koppelt elke storting aan de eerste openstaande reservering met hetzelfde bedrag.
+ */
+function iDealDepositDates(rows: DegiroAccountRow[]): Map<DegiroAccountRow, IsoDate> {
+  const pending: DegiroAccountRow[] = []
+  const dates = new Map<DegiroAccountRow, IsoDate>()
+  for (const r of rows) {
+    if (/^Reservation iDEAL$/i.test(r.description) && r.amount != null && r.amount > 0) pending.push(r)
+    if (r.kind === "deposit" && /iDEAL/i.test(r.description)) {
+      const i = pending.findIndex((p) => p.amount === r.amount && p.currency === r.currency)
+      if (i >= 0) {
+        dates.set(r, pending[i].date)
+        pending.splice(i, 1)
+      }
+    }
+  }
+  return dates
+}
+
 /** EUR per eenheid vreemde valuta, uit de eerstvolgende Valuta Debitering (FX-kolom = valuta per EUR). */
 function fxResolver(rows: DegiroAccountRow[]) {
   const position = new Map(rows.map((r, i) => [r, i]))
@@ -304,6 +326,7 @@ export function degiroToLedger(input: { transactions: string; account?: string }
   if (input.account) {
     const rows = parseDegiroAccount(input.account)
     const eurPer = fxResolver(rows)
+    const depositDate = iDealDepositDates(rows)
 
     for (const r of rows) {
       if (r.kind === null) {
@@ -330,7 +353,7 @@ export function degiroToLedger(input: { transactions: string; account?: string }
 
       events.push({
         id: makeId(`degiro:acc:${r.date}:${r.time}:${r.isin ?? ""}:${r.description}:${currency}:${r.amount}`),
-        date: r.date,
+        date: depositDate.get(r) ?? r.date,
         type: r.kind,
         // Kosten/rente zonder ISIN horen bij de rekening, niet bij een positie
         instrumentId: r.kind === "dividend" || r.kind === "dividend_tax" ? r.isin : null,

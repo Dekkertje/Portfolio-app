@@ -8,7 +8,8 @@
  *
  * dump.json: { portfolios: [{ id, transactions: LegacyTransactionRow[], manualPositions: LegacyManualPositionRow[] }] }
  *
- * Idempotent: bestaande instrumenten en events (zelfde external_id) worden overgeslagen.
+ * Idempotent: bestaande instrumenten worden overgeslagen; bestaande events (zelfde
+ * external_id) worden bijgewerkt, zodat parser-verbeteringen doorkomen bij herimport.
  */
 import { readFileSync } from "node:fs"
 import { basename } from "node:path"
@@ -62,7 +63,10 @@ CROSS JOIN (VALUES
   ${values}
 ) AS v(external_id, event_date, event_type, isin, quantity, price, currency, amount_eur, fee_eur, split_ratio)
 LEFT JOIN public.instruments i ON i.isin = v.isin
-ON CONFLICT (portfolio_id, external_id) DO NOTHING;
+ON CONFLICT (portfolio_id, external_id) DO UPDATE SET
+  event_date = EXCLUDED.event_date, event_type = EXCLUDED.event_type, instrument_id = EXCLUDED.instrument_id,
+  quantity = EXCLUDED.quantity, price = EXCLUDED.price, currency = EXCLUDED.currency,
+  amount_eur = EXCLUDED.amount_eur, fee_eur = EXCLUDED.fee_eur, split_ratio = EXCLUDED.split_ratio;
 `
 }
 
@@ -91,6 +95,7 @@ WHERE m.isin = i.isin AND i.yahoo_symbol IS NULL;
 ${batches.map(batchSql).join("\n")}
 UPDATE public.import_batches ib
 SET inserted_count = (SELECT COUNT(*) FROM public.ledger_events le WHERE le.import_batch_id = ib.id)
+-- import_batch_id blijft bij een update de oorspronkelijke batch, dus dit telt alleen nieuwe events
 WHERE ib.inserted_count = 0 AND ib.event_count > 0;
 
 COMMIT;

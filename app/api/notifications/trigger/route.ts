@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { createServiceSupabaseClient } from "@/lib/supabase/server"
 import webpush from "web-push"
 import { Resend } from "resend"
+import { isAuthorizedCron } from "@/lib/cron"
 
 function initWebPush() {
   if (process.env.VAPID_SUBJECT && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
@@ -31,11 +32,9 @@ type Rule = {
   is_active: boolean
 }
 
-// GET /api/notifications/trigger — called by Vercel Cron, which sends
-// "Authorization: Bearer $CRON_SECRET" automatically.
+// GET /api/notifications/trigger — called by Vercel Cron
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!isAuthorizedCron(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

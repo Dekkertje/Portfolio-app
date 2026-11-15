@@ -111,8 +111,9 @@ export type SaveImportInput = {
 }
 
 /**
- * Slaat een import op. Bestaande events (zelfde external_id) worden overgeslagen,
- * dus dezelfde bestanden twee keer importeren is veilig.
+ * Slaat een import op. Bestaande events (zelfde external_id) worden bijgewerkt in
+ * plaats van gedupliceerd: dezelfde bestanden twee keer importeren is veilig, en
+ * verbeteringen in de parser komen door bij een herimport.
  */
 export async function saveImport(
   db: SupabaseClient,
@@ -133,13 +134,26 @@ export async function saveImport(
     .single()
   if (batchError || !batch) throw new Error(`Import vastleggen mislukt: ${batchError?.message}`)
 
+  const existing = new Set<string>()
+  const externalIds = input.events.map((e) => e.id)
+  for (const part of chunks(externalIds)) {
+    const { data, error } = await db
+      .from("ledger_events")
+      .select("external_id")
+      .eq("portfolio_id", input.portfolioId)
+      .in("external_id", part)
+    if (error) throw new Error(`Bestaande events ophalen mislukt: ${error.message}`)
+    for (const row of data ?? []) existing.add(row.external_id)
+  }
+
   const rows = input.events.map((e) => {
     const instrumentId = e.instrumentId ? idByIsin.get(e.instrumentId) : null
     if (e.instrumentId && !instrumentId) throw new Error(`Geen instrument voor ISIN ${e.instrumentId}`)
     return {
       portfolio_id: input.portfolioId,
       external_id: e.id,
-      import_batch_id: batch.id,
+      // Een bijgewerkt event blijft bij de batch waarin het voor het eerst binnenkwam
+      ...(existing.has(e.id) ? {} : { import_batch_id: batch.id }),
       event_date: e.date,
       event_type: e.type,
       instrument_id: instrumentId,
@@ -152,15 +166,15 @@ export async function saveImport(
     }
   })
 
-  let inserted = 0
-  for (const part of chunks(rows)) {
-    const { data, error } = await db
-      .from("ledger_events")
-      .upsert(part, { onConflict: "portfolio_id,external_id", ignoreDuplicates: true })
-      .select("id")
-    if (error) throw new Error(`Events opslaan mislukt: ${error.message}`)
-    inserted += data?.length ?? 0
+  // Nieuwe en bestaande events apart: PostgREST vult ontbrekende kolommen in een
+  // bulk-upsert anders met NULL, waardoor import_batch_id van bestaande events zou wegvallen
+  const fresh = rows.filter((r) => !existing.has(r.external_id))
+  const updates = rows.filter((r) => existing.has(r.external_id))
+  for (const [part, label] of [...chunks(fresh).map((p) => [p, "nieuw"] as const), ...chunks(updates).map((p) => [p, "bijwerken"] as const)]) {
+    const { error } = await db.from("ledger_events").upsert(part, { onConflict: "portfolio_id,external_id" })
+    if (error) throw new Error(`Events opslaan mislukt (${label}): ${error.message}`)
   }
+  const inserted = fresh.length
 
   await db.from("import_batches").update({ inserted_count: inserted }).eq("id", batch.id)
   return { batchId: batch.id, total: rows.length, inserted }

@@ -13,13 +13,20 @@ function daysBetween(a: IsoDate, b: IsoDate): number {
  * tegen de koers van die dag, dus nieuw geld heeft die dag nog niets verdiend):
  *   r_t = (V_t − F_t) / V_{t-1} − 1
  * Zo telt een storting of aankoop niet als rendement, alleen de koersbeweging.
+ *
+ * Uitzondering: is het vorige vermogen verwaarloosbaar t.o.v. de instroom (eerste
+ * dag, of een restje van €0,10 na jaren stilstand), dan is de instroom de basis.
+ * Anders blaast het verschil tussen aankoop- en slotkoers het rendement op.
  */
+const NEGLIGIBLE_SHARE = 0.1
+
 export function twrIndex(points: { date: IsoDate; valueEur: number; flowEur: number }[]): { date: IsoDate; index: number }[] {
   const out: { date: IsoDate; index: number }[] = []
   let index = 1
   let prevValue = 0
   for (const p of points) {
-    if (prevValue > 0) index *= (p.valueEur - p.flowEur) / prevValue
+    const base = prevValue < Math.abs(p.flowEur) * NEGLIGIBLE_SHARE ? prevValue + p.flowEur : prevValue
+    if (base > 0) index *= 1 + (p.valueEur - prevValue - p.flowEur) / base
     out.push({ date: p.date, index })
     prevValue = p.valueEur
   }
