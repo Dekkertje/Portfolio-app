@@ -26,7 +26,7 @@ export default async function DevPreviewPage({ searchParams }: { searchParams: P
     const known = new Map([...parsed.instruments.keys()].slice(2).map((isin) => [isin, null] as [string, null]))
     importPreview = buildImportPreview({ ...parsed, existing, known, account })
   }
-  const extraFile = { dividend: "dividends.json", transacties: "transactions.json", notificaties: "notifications.json" }[page]
+  const extraFile = { dividend: "dividends.json", transacties: "transactions.json", notificaties: "notifications.json", detail: "position.json" }[page]
   const extra = extraFile ? JSON.parse(await readFile(join(process.cwd(), "fixtures", extraFile), "utf8")) : null
   return <PreviewClient data={JSON.parse(json)} page={page} importPreview={importPreview} extra={extra} />
 }

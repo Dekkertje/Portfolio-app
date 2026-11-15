@@ -36,7 +36,7 @@ const MORE: NavItem[] = [
   { href: "/transacties", label: "Transacties", icon: ArrowLeftRight },
   { href: "/importeren", label: "Importeren", icon: Upload },
   { href: "/notificaties", label: "Notificaties", icon: Bell },
-  { href: "/settings", label: "Instellingen", icon: Settings },
+  { href: "/instellingen", label: "Instellingen", icon: Settings },
 ]
 
 function isActive(pathname: string, href: string) {

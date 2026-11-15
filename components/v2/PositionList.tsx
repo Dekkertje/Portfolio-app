@@ -1,5 +1,7 @@
 "use client"
 
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useMemo, useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { money, pct, quantity } from "@/lib/format"
@@ -36,6 +38,7 @@ export function PositionList({
   /** Minder kolommen, voor een smalle kaart */
   compact?: boolean
 }) {
+  const router = useRouter()
   const [metric, setMetric] = useState<PositionMetric>("day")
   const [sort, setSort] = useState<SortKey>("value")
 
@@ -77,7 +80,8 @@ export function PositionList({
         </div>
         <ul className="divide-y divide-line">
           {rows.map((p) => (
-            <li key={p.instrumentId} className="flex items-center gap-3 px-1 py-3">
+            <li key={p.instrumentId}>
+              <Link href={`/posities/${p.instrumentId}`} className="-mx-1 flex items-center gap-3 rounded-2xl px-2 py-3 transition-colors active:bg-surface-2">
               <Initials name={displayName(p.name)} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] font-medium text-ink">{displayName(p.name)}</p>
@@ -93,6 +97,7 @@ export function PositionList({
                   <Delta percent={p.unrealizedPct} size="xs" />
                 )}
               </div>
+              </Link>
             </li>
           ))}
         </ul>
@@ -114,12 +119,16 @@ export function PositionList({
           </thead>
           <tbody className="divide-y divide-line">
             {rows.map((p) => (
-              <tr key={p.instrumentId} className="transition-colors hover:bg-surface-2/60">
+              <tr
+                key={p.instrumentId}
+                onClick={() => router.push(`/posities/${p.instrumentId}`)}
+                className="cursor-pointer transition-colors hover:bg-surface-2/60"
+              >
                 <td className="py-3 pr-4">
                   <div className="flex items-center gap-3">
                     <Initials name={displayName(p.name)} />
                     <div className="min-w-0">
-                      <p className={`truncate font-medium text-ink ${compact ? "max-w-[9rem] 2xl:max-w-[15rem]" : "max-w-[12rem] 2xl:max-w-[18rem]"}`}>{displayName(p.name)}</p>
+                      <Link href={`/posities/${p.instrumentId}`} onClick={(e) => e.stopPropagation()} className={`block truncate font-medium text-ink hover:underline ${compact ? "max-w-[9rem] 2xl:max-w-[15rem]" : "max-w-[12rem] 2xl:max-w-[18rem]"}`}>{displayName(p.name)}</Link>
                       <p className="text-xs text-muted">
                         {compact ? `${quantity(p.quantity)} × ${p.price != null && p.currency ? money(p.price, p.currency) : "—"}` : (p.symbol ?? p.isin)}
                       </p>

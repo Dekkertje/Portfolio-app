@@ -20,6 +20,8 @@ export type InstrumentRow = {
   yahoo_symbol: string | null
   symbol_status: "unmatched" | "suggested" | "approved"
   sector: string | null
+  country: string | null
+  sector_weights: Record<string, number> | null
 }
 
 // Waarden in een .in()-filter gaan in de URL; houd die kort (URL-limiet ±16 kB)
@@ -240,7 +242,7 @@ export async function loadLedger(
   for (const part of chunks(instrumentIds)) {
     const { data, error } = await db
       .from("instruments")
-      .select("id, isin, name, kind, currency, exchange, yahoo_symbol, symbol_status, sector")
+      .select("id, isin, name, kind, currency, exchange, yahoo_symbol, symbol_status, sector, country, sector_weights")
       .in("id", part)
     if (error) throw new Error(`Instrumenten laden mislukt: ${error.message}`)
     for (const row of data ?? []) instruments.set(row.id, row as InstrumentRow)

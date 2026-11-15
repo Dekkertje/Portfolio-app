@@ -4,6 +4,8 @@ import { AppShell } from "@/components/v2/AppShell"
 import { DividendsView } from "@/components/v2/DividendsView"
 import { ImportView } from "@/components/v2/ImportView"
 import { NotificationsView } from "@/components/v2/NotificationsView"
+import { PositionDetailView } from "@/components/v2/PositionDetailView"
+import { SettingsView } from "@/components/v2/SettingsView"
 import { TransactionsView } from "@/components/v2/TransactionsView"
 import { OverviewView } from "@/components/v2/OverviewView"
 import type { ImportPreview } from "@/lib/import/preview"
@@ -40,7 +42,11 @@ export function PreviewClient({
   const base = { loading: false, error: null, empty: false }
   return (
     <AppShell requireAuth={false}>
-      {page === "dividend" ? (
+      {page === "detail" ? (
+        <PositionDetailView data={extra} loading={false} error={null} />
+      ) : page === "instellingen" ? (
+        <SettingsView />
+      ) : page === "dividend" ? (
         <DividendsView data={extra} {...base} />
       ) : page === "transacties" ? (
         <TransactionsView data={extra} {...base} />

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { LedgerEvent } from "@/lib/core"
-import { buildOverview, type OverviewInstrument, type OverviewQuote } from "./overview"
+import { buildComposition, buildOverview, type OverviewInstrument, type OverviewQuote } from "./overview"
 
 const ev = (e: Partial<LedgerEvent> & Pick<LedgerEvent, "id" | "date" | "type" | "amountEur">): LedgerEvent => ({
   instrumentId: null,
@@ -62,5 +62,31 @@ describe("buildOverview", () => {
     expect(o.series[0]).toEqual({ d: "2026-11-02", v: 3000, n: 3000, f: 3000 })
     expect(o.series.at(-1)!.v).toBe(3500)
     expect(o.series.every((p) => p.n === 3000)).toBe(true)
+  })
+})
+
+describe("buildComposition", () => {
+  const pos = (instrumentId: string, valueEur: number) =>
+    ({ instrumentId, valueEur, name: instrumentId, isin: "", kind: "", symbol: null, quantity: 1, price: null, currency: null, costEur: 0,
+       unrealizedEur: null, unrealizedPct: null, dayChangeEur: null, dayChangePct: null, realizedEur: 0, dividendsEur: 0, weight: 0, stale: false })
+  const instruments = new Map<string, OverviewInstrument>([
+    ["nvda", { id: "nvda", name: "NVIDIA", isin: "", kind: "stock", symbol: "NVDA", sector: "technology" }],
+    ["qqq", { id: "qqq", name: "NASDAQ ETF", isin: "", kind: "etf", symbol: "EQQQ", sectorWeights: { technology: 0.5, communication_services: 0.3, consumer_cyclical: 0.2 } }],
+    ["x", { id: "x", name: "ONBEKEND", isin: "", kind: "stock", symbol: null }],
+  ])
+  const c = buildComposition([pos("nvda", 600), pos("qqq", 400), pos("x", 100)], instruments, 100, null)
+
+  it("verdeelt naar soort inclusief cash", () => {
+    expect(c.byKind.map((k) => [k.key, k.valueEur])).toEqual([["stock", 700], ["etf", 400], ["cash", 100]])
+    expect(c.byKind.reduce((s, k) => s + k.weight, 0)).toBeCloseTo(1, 10)
+  })
+
+  it("kijkt door in ETF's en rapporteert de dekking", () => {
+    const w = Object.fromEntries(c.bySector.map((s) => [s.key, s.weight]))
+    expect(w.technology).toBeCloseTo(800 / 1000, 10) // 600 + 0,5 × 400
+    expect(w.communication_services).toBeCloseTo(120 / 1000, 10)
+    expect(w.energy).toBe(0)
+    expect(c.bySector).toHaveLength(11)
+    expect(c.sectorCoverage).toBeCloseTo(1000 / 1100, 10)
   })
 })

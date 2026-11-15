@@ -17,7 +17,29 @@ import {
   type Quote,
 } from "@/lib/core"
 
-export type OverviewInstrument = { id: string; name: string; isin: string; kind: string; symbol: string | null }
+export type OverviewInstrument = {
+  id: string
+  name: string
+  isin: string
+  kind: string
+  symbol: string | null
+  sector?: string | null
+  country?: string | null
+  /** Look-through sectorverdeling voor ETF's/fondsen */
+  sectorWeights?: Record<string, number> | null
+}
+
+export type Benchmark = { label: string; weights: Record<string, number> }
+
+export type Composition = {
+  /** Aandeel in de totale waarde (incl. cash als het rekeningoverzicht er is) */
+  byKind: { key: string; valueEur: number; weight: number }[]
+  /** Alle sectoren, als aandeel van het deel waarvan de sector bekend is (som = 1) */
+  bySector: { key: string; valueEur: number; weight: number }[]
+  /** Welk deel van de effectenwaarde een bekende sector heeft (0–1) */
+  sectorCoverage: number
+  benchmark: Benchmark | null
+}
 
 export type OverviewQuote = {
   instrumentId: string
@@ -83,6 +105,7 @@ export type PortfolioOverview = {
   positions: OverviewPosition[]
   closed: ClosedPosition[]
   series: OverviewPoint[]
+  composition: Composition
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -93,6 +116,7 @@ export function buildOverview(input: {
   quotes: Map<string, OverviewQuote>
   market: MarketData
   today: IsoDate
+  benchmark?: Benchmark | null
 }): PortfolioOverview {
   const { events, instruments, quotes, market, today } = input
   const close = makeSeriesLookup(market.prices.map(([id, d, c]) => [id, d, c] as const))
@@ -209,5 +233,56 @@ export function buildOverview(input: {
     positions,
     closed,
     series,
+    composition: buildComposition(positions, instruments, state.tracksCash ? state.cashEur : 0, input.benchmark ?? null),
+  }
+}
+
+const SECTOR_KEYS = [
+  "technology", "financial_services", "healthcare", "consumer_cyclical", "communication_services", "industrials",
+  "consumer_defensive", "energy", "basic_materials", "realestate", "utilities",
+]
+
+/** Verdeling naar soort en (look-through) sector. Cash telt mee bij soort, niet bij sector. */
+export function buildComposition(
+  positions: OverviewPosition[],
+  instruments: Map<string, OverviewInstrument>,
+  cashEur: number,
+  benchmark: Benchmark | null,
+): Composition {
+  const kinds = new Map<string, number>()
+  const sectors = new Map<string, number>(SECTOR_KEYS.map((k) => [k, 0]))
+  let securities = 0
+  let known = 0
+
+  for (const p of positions) {
+    const inst = instruments.get(p.instrumentId)
+    const kind = inst?.kind === "stock" || inst?.kind === "etf" || inst?.kind === "fund" || inst?.kind === "crypto" ? inst.kind : "other"
+    kinds.set(kind, (kinds.get(kind) ?? 0) + p.valueEur)
+    securities += p.valueEur
+
+    const weights = inst?.sectorWeights
+    const total = weights ? Object.values(weights).reduce((s, w) => s + w, 0) : 0
+    if (weights && total > 0) {
+      for (const [k, w] of Object.entries(weights)) if (sectors.has(k)) sectors.set(k, sectors.get(k)! + (p.valueEur * w) / total)
+      known += p.valueEur
+    } else if (inst?.sector && sectors.has(inst.sector)) {
+      sectors.set(inst.sector, sectors.get(inst.sector)! + p.valueEur)
+      known += p.valueEur
+    }
+  }
+  if (cashEur > 0) kinds.set("cash", cashEur)
+
+  const totalValue = securities + Math.max(0, cashEur)
+  const order = ["stock", "etf", "fund", "crypto", "other", "cash"]
+  return {
+    byKind: [...kinds.entries()]
+      .filter(([, v]) => v > 0)
+      .sort(([a], [b]) => order.indexOf(a) - order.indexOf(b))
+      .map(([key, valueEur]) => ({ key, valueEur: round2(valueEur), weight: totalValue > 0 ? valueEur / totalValue : 0 })),
+    bySector: [...sectors.entries()]
+      .map(([key, valueEur]) => ({ key, valueEur: round2(valueEur), weight: known > 0 ? valueEur / known : 0 }))
+      .sort((a, b) => b.weight - a.weight),
+    sectorCoverage: securities > 0 ? known / securities : 0,
+    benchmark,
   }
 }

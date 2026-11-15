@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
       { source: "/dashboard/position", destination: "/posities", permanent: false },
       { source: "/dashboard/tickers", destination: "/posities", permanent: false },
       { source: "/transactions", destination: "/transacties", permanent: false },
+      { source: "/settings", destination: "/instellingen", permanent: false },
     ]
   },
   images: {

@@ -6,6 +6,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { CONFIDENCE, matchPosition } from "@/lib/matching/engine"
+import { bestNameScore } from "@/lib/matching/string-utils"
 import { searchSymbol } from "@/lib/providers/yahoo"
 
 export type MatchOutcome = { id: string; name: string; isin: string; symbol: string | null; status: "approved" | "suggested" | "unmatched" }
@@ -35,9 +36,12 @@ export async function matchInstruments(service: SupabaseClient, instrumentIds: s
       // val door naar Yahoo-zoeken
     }
     if (!symbol) {
+      // Tickers worden na een overname soms hergebruikt (ATOTECH → ATC werd een ETF):
+      // alleen accepteren als de naam van het zoekresultaat op het effect lijkt
       const hits = await searchSymbol(inst.isin).catch(() => [])
-      if (hits[0]) {
-        symbol = hits[0].symbol
+      const hit = hits.find((h) => bestNameScore(inst.name, [h.longname ?? "", h.shortname]) >= 0.6)
+      if (hit) {
+        symbol = hit.symbol
         confidence = 0.8
         method = "yahoo_search_isin"
       }

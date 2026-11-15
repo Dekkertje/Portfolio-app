@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { isAuthorizedCron } from "@/lib/cron"
+import { refreshProfiles } from "@/lib/instruments/profile"
 import { collectPriceUpdates } from "@/lib/prices/sync"
 import { loadSyncStatus, savePriceUpdates } from "@/lib/prices/store"
 import { createServiceSupabaseClient } from "@/lib/supabase/server"
@@ -16,12 +17,15 @@ export async function GET(request: Request) {
   const status = await loadSyncStatus(db)
   const updates = await collectPriceUpdates(status.instruments, status.fx)
   await savePriceUpdates(db, updates)
+  // Sector/land/soort ververst zichzelf eens per 30 dagen per instrument
+  const profiles = await refreshProfiles(db).catch(() => 0)
 
   return NextResponse.json({
     instruments: status.instruments.length,
     dailyPrices: updates.daily.length,
     quotes: updates.quotes.length,
     fxRates: updates.fx.length,
+    profiles,
     errors: updates.errors,
   })
 }

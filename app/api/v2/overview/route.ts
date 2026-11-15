@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { buildState } from "@/lib/core"
 import { loadLedger } from "@/lib/ledger/repository"
-import { buildOverview, type MarketData, type OverviewInstrument, type OverviewQuote } from "@/lib/portfolio/overview"
+import { buildOverview, type Benchmark, type MarketData, type OverviewInstrument, type OverviewQuote } from "@/lib/portfolio/overview"
 import { refreshStaleQuotes } from "@/lib/prices/refresh"
 import { createRouteHandlerClient, createServiceSupabaseClient } from "@/lib/supabase/server"
 
@@ -39,6 +39,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: `Koersen laden mislukt: ${marketResult.error.message}` }, { status: 500 })
   }
 
+  const { data: bench } = await db.from("reference_data").select("value").eq("key", "benchmark_sectors").maybeSingle()
+
   const { data: quoteRows } = await db
     .from("latest_quotes")
     .select("instrument_id, price, previous_close, currency, quoted_at, market_state")
@@ -59,7 +61,10 @@ export async function GET(request: Request) {
   )
 
   const overviewInstruments = new Map<string, OverviewInstrument>(
-    [...instruments.values()].map((i) => [i.id, { id: i.id, name: i.name, isin: i.isin, kind: i.kind, symbol: i.yahoo_symbol }]),
+    [...instruments.values()].map((i) => [
+      i.id,
+      { id: i.id, name: i.name, isin: i.isin, kind: i.kind, symbol: i.yahoo_symbol, sector: i.sector, country: i.country, sectorWeights: i.sector_weights },
+    ]),
   )
 
   const overview = buildOverview({
@@ -68,6 +73,7 @@ export async function GET(request: Request) {
     quotes,
     market: marketResult.data as MarketData,
     today: new Date().toISOString().slice(0, 10),
+    benchmark: (bench?.value as Benchmark | undefined) ?? null,
   })
 
   return NextResponse.json(overview, { headers: { "Cache-Control": "private, no-store" } })

@@ -93,7 +93,7 @@ export function TransactionsView({ data, loading, error, empty }: { data: Transa
               </h2>
               <ul className="divide-y divide-line">
                 {g.rows.map((t) => (
-                  <Row key={t.id} t={t} />
+                  <TransactionRowItem key={t.id} t={t} />
                 ))}
               </ul>
             </section>
@@ -110,7 +110,7 @@ export function TransactionsView({ data, loading, error, empty }: { data: Transa
   )
 }
 
-function Row({ t }: { t: TransactionRow }) {
+export function TransactionRowItem({ t }: { t: TransactionRow }) {
   const meta = META[t.type]
   const Icon = meta.icon
   const title = t.name ? `${meta.label} · ${displayName(t.name)}` : meta.label

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { degiroToLedger } from "@/lib/import/degiro"
 import { buildImportPreview } from "@/lib/import/preview"
 import { matchInstruments } from "@/lib/instruments/match"
+import { refreshProfiles } from "@/lib/instruments/profile"
 import { existingExternalIds, saveImport } from "@/lib/ledger/repository"
 import { backfillPrices } from "@/lib/prices/backfill"
 import { createRouteHandlerClient, createServiceSupabaseClient } from "@/lib/supabase/server"
@@ -82,7 +83,10 @@ export async function POST(request: Request) {
   const { data: instrumentRows } = await service.from("instruments").select("id").in("isin", [...parsed.instruments.keys()])
   const ids = (instrumentRows ?? []).map((r) => r.id as string)
   const matched = await matchInstruments(service, ids).catch(() => [])
-  const prices = await backfillPrices(service, ids).catch((e) => ({ prices: 0, errors: [String(e)] }))
+  const [prices] = await Promise.all([
+    backfillPrices(service, ids).catch((e) => ({ prices: 0, errors: [String(e)] })),
+    refreshProfiles(service, { instrumentIds: ids }).catch(() => 0),
+  ])
 
   return NextResponse.json({
     inserted: saved.inserted,

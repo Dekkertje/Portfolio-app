@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { ChevronRight, RefreshCw, Upload } from "lucide-react"
 import { Allocation } from "./Allocation"
+import { Composition } from "./Composition"
 import { PerformanceCard } from "./PerformanceCard"
 import { PositionList } from "./PositionList"
 import { Amount, Card, Delta, Private, SectionTitle, Skeleton } from "./ui"
@@ -67,6 +68,8 @@ export function OverviewView({ data, empty, error, loading, refreshing, refresh 
               <Allocation positions={data.positions} />
             </Card>
           </div>
+
+          <Composition data={data.composition} />
         </div>
       )}
     </div>
@@ -85,6 +88,13 @@ function Hero({ data }: { data: PortfolioOverview }) {
       <Private className="mt-1 block text-[44px] font-semibold leading-none tracking-tight text-ink sm:text-[56px]">
         {eur(t.valueEur)}
       </Private>
+      {data.tracksCash && (
+        <p className="mt-2 text-[13px] text-ink-2">
+          Effecten <Private className="font-medium text-ink">{eur(t.securitiesEur, { decimals: 0 })}</Private>
+          <span className="mx-2 text-muted">·</span>
+          Cash <Private className="font-medium text-ink">{eur(t.cashEur)}</Private>
+        </p>
+      )}
       <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
         <div className="flex items-center gap-2">
           <Delta value={t.dayChangeEur} percent={t.dayChangePct} variant="pill" size="sm" />

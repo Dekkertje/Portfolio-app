@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { displayName, PositionList } from "./PositionList"
 import { Card, Delta, Initials, Private, SectionTitle, Skeleton } from "./ui"
 import { eur } from "@/lib/format"
@@ -31,7 +32,8 @@ export function PositionsView({ data, loading, error }: { data: PortfolioOvervie
               <SectionTitle>Gesloten posities</SectionTitle>
               <ul className="divide-y divide-line">
                 {data.closed.map((p) => (
-                  <li key={p.instrumentId} className="flex items-center gap-3 px-1 py-3">
+                  <li key={p.instrumentId}>
+                    <Link href={`/posities/${p.instrumentId}`} className="-mx-1 flex items-center gap-3 rounded-2xl px-2 py-3 transition-colors hover:bg-surface-2/60 active:bg-surface-2">
                     <Initials name={displayName(p.name)} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[15px] font-medium text-ink">{displayName(p.name)}</p>
@@ -42,6 +44,7 @@ export function PositionsView({ data, loading, error }: { data: PortfolioOvervie
                       )}
                     </div>
                     <Delta value={p.realizedEur + p.dividendsEur} size="sm" />
+                    </Link>
                   </li>
                 ))}
               </ul>
