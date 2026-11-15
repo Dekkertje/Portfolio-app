@@ -159,7 +159,7 @@ function EmptyState() {
       <p className="mt-1 max-w-sm text-sm text-ink-2">
         Importeer je DEGIRO-export (Transacties en Rekeningoverzicht) om je portfolio te zien.
       </p>
-      <Link href="/import" className="mt-6 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-surface">
+      <Link href="/importeren" className="mt-6 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-surface">
         Importeren
       </Link>
     </Card>

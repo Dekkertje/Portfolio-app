@@ -34,7 +34,7 @@ const TABS: NavItem[] = [
 
 const MORE: NavItem[] = [
   { href: "/transactions", label: "Transacties", icon: ArrowLeftRight },
-  { href: "/import", label: "Importeren", icon: Upload },
+  { href: "/importeren", label: "Importeren", icon: Upload },
   { href: "/notificaties", label: "Notificaties", icon: Bell },
   { href: "/settings", label: "Instellingen", icon: Settings },
 ]

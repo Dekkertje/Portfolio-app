@@ -245,7 +245,8 @@ export async function getFXRateFromYahoo(
  * Useful for the "manual ticker" input in the import review screen.
  */
 export async function searchSymbol(query: string): Promise<YahooSearchResult[]> {
-  const url = `${BASE_V10}/search?q=${encodeURIComponent(query)}&quotesCount=6&newsCount=0`
+  // Zoeken bestaat alleen op v1 (v10/search geeft 404)
+  const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=6&newsCount=0`
 
   let res: Response
   try {

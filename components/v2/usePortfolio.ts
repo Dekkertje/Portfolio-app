@@ -82,3 +82,9 @@ export function usePortfolio() {
   const refresh = useCallback(() => load(), [])
   return { ...snapshot, refresh }
 }
+
+/** Na een import: overzicht opnieuw ophalen (de vorige data blijft zichtbaar tot de nieuwe binnen is). */
+export function invalidatePortfolio() {
+  set({ fetchedAt: 0, empty: false })
+  return load()
+}

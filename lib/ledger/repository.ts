@@ -22,7 +22,8 @@ export type InstrumentRow = {
   sector: string | null
 }
 
-const CHUNK = 500
+// Waarden in een .in()-filter gaan in de URL; houd die kort (URL-limiet ±16 kB)
+const CHUNK = 100
 // PostgREST levert standaard maximaal 1000 rijen per request
 const PAGE = 1000
 
@@ -100,6 +101,26 @@ export async function ensureInstruments(db: SupabaseClient, parsed: ParsedInstru
   return idByIsin
 }
 
+/**
+ * Alle external_id's van een portfolio. Gepagineerd ophalen i.p.v. filteren met
+ * .in(): de id's zijn lang en een lijst ervan past niet in een URL.
+ */
+export async function existingExternalIds(db: SupabaseClient, portfolioId: string): Promise<Set<string>> {
+  const ids = new Set<string>()
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await db
+      .from("ledger_events")
+      .select("external_id")
+      .eq("portfolio_id", portfolioId)
+      .order("external_id")
+      .range(from, from + PAGE - 1)
+    if (error) throw new Error(`Bestaande events ophalen mislukt: ${error.message}`)
+    for (const row of data ?? []) ids.add(row.external_id)
+    if (!data || data.length < PAGE) break
+  }
+  return ids
+}
+
 export type SaveImportInput = {
   portfolioId: string
   source: "degiro" | "manual" | "migration"
@@ -120,6 +141,7 @@ export async function saveImport(
   input: SaveImportInput,
 ): Promise<{ batchId: string; total: number; inserted: number }> {
   const idByIsin = await ensureInstruments(db, [...input.instruments.values()])
+  const existing = await existingExternalIds(db, input.portfolioId)
 
   const { data: batch, error: batchError } = await db
     .from("import_batches")
@@ -133,18 +155,6 @@ export async function saveImport(
     .select("id")
     .single()
   if (batchError || !batch) throw new Error(`Import vastleggen mislukt: ${batchError?.message}`)
-
-  const existing = new Set<string>()
-  const externalIds = input.events.map((e) => e.id)
-  for (const part of chunks(externalIds)) {
-    const { data, error } = await db
-      .from("ledger_events")
-      .select("external_id")
-      .eq("portfolio_id", input.portfolioId)
-      .in("external_id", part)
-    if (error) throw new Error(`Bestaande events ophalen mislukt: ${error.message}`)
-    for (const row of data ?? []) existing.add(row.external_id)
-  }
 
   const rows = input.events.map((e) => {
     const instrumentId = e.instrumentId ? idByIsin.get(e.instrumentId) : null
