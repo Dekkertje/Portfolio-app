@@ -42,7 +42,7 @@ export default function AuthCallback() {
             router.replace(`/login?error=${encodeURIComponent(error.message)}`)
           } else {
             await ensurePortfolio(data.session?.user.id)
-            router.replace("/dashboard")
+            router.replace("/overzicht")
           }
           return
         }
@@ -56,7 +56,7 @@ export default function AuthCallback() {
           router.replace(`/login?error=${encodeURIComponent(error.message)}`)
         } else {
           await ensurePortfolio(data.session?.user.id)
-          router.replace("/dashboard")
+          router.replace("/overzicht")
         }
         return
       }
@@ -65,7 +65,7 @@ export default function AuthCallback() {
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
         await ensurePortfolio(session.user.id)
-        router.replace("/dashboard")
+        router.replace("/overzicht")
       } else {
         router.replace("/login?error=no_token")
       }

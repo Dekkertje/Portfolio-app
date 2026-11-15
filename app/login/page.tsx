@@ -25,7 +25,7 @@ export default function LoginPage() {
     async function checkAuth() {
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
-        router.push("/dashboard")
+        router.push("/overzicht")
       } else {
         setChecking(false)
       }
@@ -46,7 +46,7 @@ export default function LoginPage() {
         return
       }
 
-      router.push("/dashboard")
+      router.push("/overzicht")
     } catch {
       showToast("Er ging iets mis bij het inloggen.", "error")
       setLoading(false)

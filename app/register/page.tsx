@@ -20,7 +20,7 @@ export default function RegisterPage() {
     async function checkAuth() {
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
-        router.push("/dashboard")
+        router.push("/overzicht")
       } else {
         setChecking(false)
       }

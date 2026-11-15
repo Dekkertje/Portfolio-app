@@ -12,7 +12,7 @@ export default function Home() {
       const { data: { session } } = await supabase.auth.getSession()
 
       if (session) {
-        router.push("/dashboard")
+        router.push("/overzicht")
       } else {
         router.push("/login")
       }
