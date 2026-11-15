@@ -43,7 +43,7 @@ export function OverviewView({ data, empty, error, loading, refreshing, refresh 
       {loading && !data && !empty && <LoadingState />}
 
       {data && (
-        <div className={`flex flex-col gap-5 transition-opacity ${refreshing ? "opacity-70" : ""}`}>
+        <div className="flex flex-col gap-5">
           <Hero data={data} />
 
           <Stats data={data} />
