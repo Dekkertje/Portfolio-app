@@ -29,10 +29,17 @@ export async function POST(request: Request) {
   if ((count ?? 0) >= 20)
     return NextResponse.json({ error: "Maximaal 20 regels per gebruiker" }, { status: 429 })
 
-  const body = await request.json()
+  // Alleen bekende velden overnemen; de rest van de body negeren
+  const body = (await request.json()) as Record<string, unknown>
+  const ALLOWED = ["name", "rule_type", "ticker", "isin", "threshold", "window_hours", "channels", "cooldown_min", "is_active"] as const
+  const row: Record<string, unknown> = { user_id: user.id }
+  for (const key of ALLOWED) if (key in body) row[key] = body[key]
+  if (!["price_above", "price_below", "pct_change_up", "pct_change_down"].includes(String(row.rule_type))) {
+    return NextResponse.json({ error: "Onbekend type melding" }, { status: 400 })
+  }
   const { data, error } = await supabase
     .from("notification_rules")
-    .insert({ ...body, user_id: user.id })
+    .insert(row)
     .select()
     .single()
 

@@ -7,10 +7,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const body = await request.json()
+  // Alleen wijzigbare velden; nooit user_id of id uit de body overnemen
+  const body = (await request.json()) as Record<string, unknown>
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  for (const key of ["name", "threshold", "channels", "cooldown_min", "is_active"]) if (key in body) patch[key] = body[key]
   const { data, error } = await supabase
     .from("notification_rules")
-    .update({ ...body, updated_at: new Date().toISOString() })
+    .update(patch)
     .eq("id", id)
     .eq("user_id", user.id)
     .select()

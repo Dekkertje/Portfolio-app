@@ -4,7 +4,10 @@ import { useMemo, useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { money, pct, quantity } from "@/lib/format"
 import type { OverviewPosition } from "@/lib/portfolio/overview"
+import { displayName } from "@/lib/names"
 import { Amount, Delta, Initials, Private, Segmented } from "./ui"
+
+export { displayName }
 
 export type PositionMetric = "day" | "total"
 type SortKey = "value" | "name" | "day" | "total" | "weight"
@@ -15,19 +18,6 @@ const SORTS: Record<SortKey, (a: OverviewPosition, b: OverviewPosition) => numbe
   name: (a, b) => a.name.localeCompare(b.name, "nl"),
   day: (a, b) => (b.dayChangePct ?? -Infinity) - (a.dayChangePct ?? -Infinity),
   total: (a, b) => (b.unrealizedPct ?? -Infinity) - (a.unrealizedPct ?? -Infinity),
-}
-
-function titleCase(name: string) {
-  // DEGIRO levert namen in hoofdletters; leesbaarder in gewone schrijfwijze
-  if (name !== name.toUpperCase()) return name
-  return name
-    .toLowerCase()
-    .replace(/(^|[\s.&-])(\p{L})/gu, (_, p, c) => p + c.toUpperCase())
-    .replace(/\b(Etf|Ucits|Usd|Eur|Asml|Msci|Ftse|Abn|Amro|Ing|Sofi|Amd)\b/g, (m) => m.toUpperCase())
-}
-
-export function displayName(name: string) {
-  return titleCase(name).replace(/,? (INC\.?|CORPORATION|CORP\.?|N\.V\.|HOLDINGS?)( CLASS [A-C])?$/i, "").replace(/ CLASS [A-C]$/i, "")
 }
 
 /**

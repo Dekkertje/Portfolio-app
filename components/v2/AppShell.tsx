@@ -17,11 +17,11 @@ import {
   Settings,
   Sun,
   Upload,
-  X,
 } from "lucide-react"
 import { usePrivacy } from "@/contexts/PrivacyContext"
 import { useTheme } from "@/contexts/ThemeContext"
 import { supabase } from "@/lib/supabase/client"
+import { Sheet } from "./Sheet"
 
 type NavItem = { href: string; label: string; icon: React.ElementType }
 
@@ -29,11 +29,11 @@ type NavItem = { href: string; label: string; icon: React.ElementType }
 const TABS: NavItem[] = [
   { href: "/overzicht", label: "Overzicht", icon: Home },
   { href: "/posities", label: "Posities", icon: Layers },
-  { href: "/dashboard/dividenden", label: "Dividend", icon: CalendarDays },
+  { href: "/dividend", label: "Dividend", icon: CalendarDays },
 ]
 
 const MORE: NavItem[] = [
-  { href: "/transactions", label: "Transacties", icon: ArrowLeftRight },
+  { href: "/transacties", label: "Transacties", icon: ArrowLeftRight },
   { href: "/importeren", label: "Importeren", icon: Upload },
   { href: "/notificaties", label: "Notificaties", icon: Bell },
   { href: "/settings", label: "Instellingen", icon: Settings },
@@ -171,37 +171,17 @@ function SignOut() {
 }
 
 function MoreSheet({ onClose, pathname }: { onClose: () => void; pathname: string }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose()
-    document.addEventListener("keydown", onKey)
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.removeEventListener("keydown", onKey)
-      document.body.style.overflow = ""
-    }
-  }, [onClose])
-
   return (
-    <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Meer">
-      <button aria-label="Sluiten" onClick={onClose} className="absolute inset-0 bg-black/40 animate-fade-in" />
-      <div className="pb-safe absolute inset-x-0 bottom-0 rounded-t-[28px] bg-surface px-3 pt-2 shadow-2xl animate-sheet-up">
-        <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-grid" aria-hidden />
-        <div className="flex items-center justify-between px-3 pb-2">
-          <h2 className="text-[17px] font-semibold">Meer</h2>
-          <button onClick={onClose} aria-label="Sluiten" className="grid h-9 w-9 place-items-center rounded-full bg-surface-2 text-ink-2">
-            <X size={18} />
-          </button>
-        </div>
-        <nav className="flex flex-col gap-0.5 pb-2">
-          {MORE.map((item) => (
-            <SideLink key={item.href} item={item} active={isActive(pathname, item.href)} onNavigate={onClose} />
-          ))}
-        </nav>
-        <div className="flex flex-col gap-0.5 border-t border-line py-2">
-          <Preferences />
-          <SignOut />
-        </div>
+    <Sheet title="Meer" onClose={onClose} desktop="hidden">
+      <nav className="flex flex-col gap-0.5 pb-2">
+        {MORE.map((item) => (
+          <SideLink key={item.href} item={item} active={isActive(pathname, item.href)} onNavigate={onClose} />
+        ))}
+      </nav>
+      <div className="flex flex-col gap-0.5 border-t border-line py-2">
+        <Preferences />
+        <SignOut />
       </div>
-    </div>
+    </Sheet>
   )
 }

@@ -3,6 +3,9 @@ import { createServiceSupabaseClient } from "@/lib/supabase/server"
 import webpush from "web-push"
 import { Resend } from "resend"
 import { isAuthorizedCron } from "@/lib/cron"
+import { money } from "@/lib/format"
+import { displayName } from "@/lib/names"
+import { refreshStaleQuotes } from "@/lib/prices/refresh"
 
 function initWebPush() {
   if (process.env.VAPID_SUBJECT && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
@@ -51,18 +54,22 @@ export async function GET(request: Request) {
 
   if (!rules?.length) return NextResponse.json({ triggered: 0 })
 
-  // 2. Get unique tickers and their latest prices
-  const tickers = [...new Set(rules.map((r: Rule) => r.ticker).filter(Boolean))]
-  const { data: prices } = await supabase
-    .from("prices")
-    .select("isin, yahoo_symbol, current_price, previous_close, price_date")
-    .in("yahoo_symbol", tickers)
+  // 2. Actuele koersen voor de tickers in de regels (eerst verversen: de koers-cron draait pas 's avonds)
+  const tickers = [...new Set(rules.map((r: Rule) => r.ticker).filter((t): t is string => Boolean(t)))]
+  const { data: instruments } = await supabase.from("instruments").select("id, yahoo_symbol, name").in("yahoo_symbol", tickers)
+  const nameBySymbol = new Map((instruments ?? []).map((i) => [i.yahoo_symbol as string, displayName(i.name as string)]))
+  const idBySymbol = new Map((instruments ?? []).map((i) => [i.yahoo_symbol as string, i.id as string]))
+  await refreshStaleQuotes(supabase, [...idBySymbol].map(([symbol, id]) => ({ id, symbol })), 10).catch(() => 0)
+  const { data: quotes } = await supabase
+    .from("latest_quotes")
+    .select("instrument_id, price, previous_close, currency")
+    .in("instrument_id", [...idBySymbol.values()])
 
-  const priceMap: Record<string, { current: number; prev: number }> = {}
-  for (const p of prices ?? []) {
-    if (p.yahoo_symbol) {
-      priceMap[p.yahoo_symbol] = { current: p.current_price, prev: p.previous_close ?? p.current_price }
-    }
+  const quoteById = new Map((quotes ?? []).map((q) => [q.instrument_id as string, q]))
+  const priceMap: Record<string, { current: number; prev: number; currency: string }> = {}
+  for (const [symbol, id] of idBySymbol) {
+    const q = quoteById.get(id)
+    if (q) priceMap[symbol] = { current: Number(q.price), prev: Number(q.previous_close ?? q.price), currency: q.currency }
   }
 
   let triggered = 0
@@ -70,8 +77,10 @@ export async function GET(request: Request) {
   for (const rule of rules as Rule[]) {
     if (!rule.ticker || !priceMap[rule.ticker]) continue
 
-    const { current, prev } = priceMap[rule.ticker]
+    const { current, prev, currency } = priceMap[rule.ticker]
     const changePct = prev > 0 ? ((current - prev) / prev) * 100 : 0
+    const fmt = (n: number) => money(n, currency)
+    const label = nameBySymbol.get(rule.ticker) ?? rule.ticker
 
     let shouldFire = false
     let title = ""
@@ -79,20 +88,20 @@ export async function GET(request: Request) {
 
     if (rule.rule_type === "price_above" && rule.threshold != null && current >= rule.threshold) {
       shouldFire = true
-      title = `${rule.ticker} boven €${rule.threshold}`
-      body = `${rule.ticker} staat op €${current.toFixed(2)}. Jouw drempel van €${rule.threshold} is bereikt.`
+      title = `${label} boven ${fmt(rule.threshold)}`
+      body = `${label} staat op ${fmt(current)}. Jouw drempel van ${fmt(rule.threshold)} is bereikt.`
     } else if (rule.rule_type === "price_below" && rule.threshold != null && current <= rule.threshold) {
       shouldFire = true
-      title = `${rule.ticker} onder €${rule.threshold}`
-      body = `${rule.ticker} staat op €${current.toFixed(2)}. Koers is onder jouw drempel van €${rule.threshold} gedaald.`
+      title = `${label} onder ${fmt(rule.threshold)}`
+      body = `${label} staat op ${fmt(current)}. Koers is onder jouw drempel van ${fmt(rule.threshold)} gedaald.`
     } else if (rule.rule_type === "pct_change_up" && rule.threshold != null && changePct >= rule.threshold) {
       shouldFire = true
-      title = `${rule.ticker} +${changePct.toFixed(1)}% vandaag`
-      body = `${rule.ticker} is vandaag ${changePct.toFixed(1)}% gestegen. Huidige koers: €${current.toFixed(2)}.`
+      title = `${label} +${changePct.toFixed(1)}% vandaag`
+      body = `${label} is vandaag ${changePct.toFixed(1)}% gestegen. Huidige koers: ${fmt(current)}.`
     } else if (rule.rule_type === "pct_change_down" && rule.threshold != null && changePct <= -rule.threshold) {
       shouldFire = true
-      title = `${rule.ticker} ${changePct.toFixed(1)}% vandaag`
-      body = `${rule.ticker} is vandaag ${Math.abs(changePct).toFixed(1)}% gedaald. Huidige koers: €${current.toFixed(2)}.`
+      title = `${label} ${changePct.toFixed(1)}% vandaag`
+      body = `${label} is vandaag ${Math.abs(changePct).toFixed(1)}% gedaald. Huidige koers: ${fmt(current)}.`
     }
 
     if (!shouldFire) continue
@@ -169,7 +178,7 @@ async function dispatch(
       subject: title,
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
-          <h2 style="color:#a3e635;margin-bottom:8px">${title}</h2>
+          <h2 style="color:#0b0b0b;margin-bottom:8px">${title}</h2>
           <p style="color:#334155">${body}</p>
           <hr style="border-color:#e2e8f0;margin:24px 0"/>
           <p style="color:#94a3b8;font-size:12px">DekkerTracker — Persoonlijk beleggingsdashboard</p>
