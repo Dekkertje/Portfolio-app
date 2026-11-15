@@ -45,6 +45,7 @@ export const config = {
     /*
      * Match all request paths except static files and images
      */
-    '/((?!_next/static|_next/image|favicon.ico|images/).*)',
+    // Geen sessiecheck voor statische bestanden (PWA-bestanden, iconen, afbeeldingen)
+    '/((?!_next/static|_next/image|favicon.ico|images/|icons/|brand/|sw.js|manifest.json|offline.html|icon.png|apple-icon.png).*)',
   ],
 }

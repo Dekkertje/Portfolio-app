@@ -5,6 +5,7 @@ import { ToastProvider } from "@/components/ui/Toast";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { PrivacyProvider } from "@/contexts/PrivacyContext";
 import { SidebarProvider } from "@/contexts/SidebarContext";
+import { ServiceWorker } from "@/components/ServiceWorker";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -64,6 +65,7 @@ export default function RootLayout({
           <SidebarProvider>
             <PrivacyProvider>
               <ToastProvider>{children}</ToastProvider>
+              <ServiceWorker />
             </PrivacyProvider>
           </SidebarProvider>
         </ThemeProvider>

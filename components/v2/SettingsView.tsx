@@ -8,6 +8,7 @@ import { usePrivacy } from "@/contexts/PrivacyContext"
 import { useTheme } from "@/contexts/ThemeContext"
 import { authFetch, supabase } from "@/lib/supabase/client"
 import type { TransactionsResponse } from "@/app/api/v2/transactions/route"
+import { InstallCard } from "./InstallApp"
 import { Card, Initials, SectionTitle, Segmented } from "./ui"
 
 type Profile = { id: string; email: string; fullName: string; avatarUrl: string | null; provider: string }
@@ -43,6 +44,7 @@ export function SettingsView() {
           {profile?.provider === "email" && <PasswordCard />}
         </div>
         <div className="flex flex-col gap-5">
+          <InstallCard />
           <DisplayCard />
           <DataCard />
           <AccountCard />

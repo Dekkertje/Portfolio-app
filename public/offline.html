@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Offline · DekkerTracker</title>
+    <style>
+      :root { color-scheme: light dark; --bg: #f4f4f1; --card: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; }
+      @media (prefers-color-scheme: dark) { :root { --bg: #0d0d0d; --card: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; } }
+      body { margin: 0; min-height: 100dvh; display: grid; place-items: center; background: var(--bg); color: var(--ink);
+             font-family: system-ui, -apple-system, "Segoe UI", sans-serif; padding: 24px; box-sizing: border-box; }
+      .card { background: var(--card); border-radius: 28px; padding: 32px 28px; max-width: 340px; text-align: center; }
+      img { width: 56px; height: 56px; }
+      h1 { font-size: 22px; margin: 16px 0 6px; letter-spacing: -0.01em; }
+      p { margin: 0; color: var(--ink2); font-size: 15px; line-height: 1.45; }
+      button { margin-top: 24px; height: 44px; padding: 0 22px; border: 0; border-radius: 999px; background: var(--ink); color: var(--card);
+               font: inherit; font-weight: 600; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <img src="/brand/logo-mark.png" alt="" />
+      <h1>Je bent offline</h1>
+      <p>Zonder internetverbinding kunnen we je portfolio niet bijwerken. Probeer het opnieuw zodra je weer verbonden bent.</p>
+      <button onclick="location.reload()">Opnieuw proberen</button>
+    </div>
+  </body>
+</html>

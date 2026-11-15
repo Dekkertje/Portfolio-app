@@ -4,6 +4,7 @@ import Link from "next/link"
 import { ChevronRight, RefreshCw, Upload } from "lucide-react"
 import { Allocation } from "./Allocation"
 import { Composition } from "./Composition"
+import { InstallBanner } from "./InstallApp"
 import { PerformanceCard } from "./PerformanceCard"
 import { PositionList } from "./PositionList"
 import { Amount, Card, Delta, Private, SectionTitle, Skeleton } from "./ui"
@@ -44,6 +45,7 @@ export function OverviewView({ data, empty, error, loading, refreshing, refresh 
 
       {data && (
         <div className="flex flex-col gap-5">
+          <InstallBanner />
           <Hero data={data} />
 
           <Stats data={data} />
