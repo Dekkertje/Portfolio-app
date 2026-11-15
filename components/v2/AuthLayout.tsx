@@ -40,7 +40,7 @@ function Brand() {
   return (
     <div className="flex items-center gap-2.5">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/icons/icon-96x96.png" alt="" className="h-9 w-9 rounded-xl" />
+      <img src="/brand/logo-mark.png" alt="" className="h-12 w-12" />
       <span className="text-[18px] font-semibold tracking-tight">DekkerTracker</span>
     </div>
   )

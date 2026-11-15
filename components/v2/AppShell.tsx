@@ -61,7 +61,7 @@ export function AppShell({ children, requireAuth = true }: { children: React.Rea
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-line bg-surface px-4 py-6 lg:flex">
         <Link href="/overzicht" className="mb-8 flex items-center gap-2.5 px-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icons/icon-96x96.png" alt="" className="h-8 w-8 rounded-xl" />
+          <img src="/brand/logo-mark.png" alt="" className="h-10 w-10" />
           <span className="text-[17px] font-semibold tracking-tight">DekkerTracker</span>
         </Link>
         <nav className="flex flex-1 flex-col gap-0.5" aria-label="Hoofdmenu">
