@@ -6,7 +6,7 @@
   "outputDirectory": ".next",
   "crons": [
     {
-      "path": "/api/notifications/trigger?secret=dekkertracker-cron-2026",
+      "path": "/api/notifications/trigger",
       "schedule": "0 16 * * 1-5"
     }
   ]

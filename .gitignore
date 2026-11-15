@@ -47,3 +47,9 @@ next-env.d.ts
 /public/workbox-*.js.map
 
 .vercel
+
+# lokale broker-exports (testdata, bevat persoonlijke gegevens)
+/fixtures/
+
+# Supabase CLI lokale status (bevat o.a. connectie-URL)
+/supabase/.temp/

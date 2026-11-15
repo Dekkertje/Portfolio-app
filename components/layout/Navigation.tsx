@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, ArrowLeftRight, Upload, LogOut, TrendingUp, Users, Moon, Sun, Settings, User, Eye, EyeOff, ChevronLeft, ChevronRight, CalendarDays, CheckSquare, Tag, Bell, X, CheckCheck } from "lucide-react"
+import { LayoutDashboard, ArrowLeftRight, Upload, LogOut, TrendingUp, Moon, Sun, Settings, User, Eye, EyeOff, ChevronLeft, ChevronRight, CalendarDays, CheckSquare, Tag, Bell, X, CheckCheck } from "lucide-react"
 import { supabase, authFetch } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { useTheme } from "@/contexts/ThemeContext"
@@ -33,7 +33,6 @@ const navigation: NavItem[] = [
   { name: "Afgesloten",   href: "/dashboard/gesloten",      icon: CheckSquare     },
   { name: "Transacties",  href: "/transactions",            icon: ArrowLeftRight  },
   { name: "Importeren",   href: "/import",                  icon: Upload          },
-  { name: "Politicians",  href: "/politicians",             icon: Users           },
   { name: "Notificaties", href: "/notificaties",            icon: Bell            },
   { name: "Instellingen", href: "/settings",                icon: Settings        },
 ]

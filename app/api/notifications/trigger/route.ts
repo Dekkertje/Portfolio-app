@@ -31,10 +31,11 @@ type Rule = {
   is_active: boolean
 }
 
-// GET /api/notifications/trigger?secret=xxx  — called by Vercel Cron
+// GET /api/notifications/trigger — called by Vercel Cron, which sends
+// "Authorization: Bearer $CRON_SECRET" automatically.
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  if (searchParams.get("secret") !== process.env.CRON_SECRET) {
+  const secret = process.env.CRON_SECRET
+  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
