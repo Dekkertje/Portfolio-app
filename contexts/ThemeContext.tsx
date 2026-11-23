@@ -11,6 +11,11 @@ type ThemeContextType = {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
+/** Statusbalk/systeembalk laten aansluiten op de paginaachtergrond (--plane) */
+function applyThemeColor(theme: Theme) {
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#0d0d0d" : "#f4f4f1")
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>("light")
 
@@ -47,6 +52,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } else {
       document.documentElement.classList.remove("dark")
     }
+    applyThemeColor(newTheme)
   }
 
   return (

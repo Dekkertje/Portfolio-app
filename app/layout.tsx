@@ -35,10 +35,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   // Content loopt door achter de notch/home-indicator; safe-area-padding vangt dat op
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f4f4f1" },
-    { media: "(prefers-color-scheme: dark)", color: "#0d0d0d" },
-  ],
 };
 
 export default function RootLayout({
@@ -53,10 +49,12 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
+        {/* Eén theme-color die het app-thema volgt (ook als dat afwijkt van het systeemthema) */}
+        <meta name="theme-color" content="#0d0d0d" />
         {/* Thema zetten vóór de eerste paint, anders flitst/animeert alles van licht naar donker */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem("theme");if(t==="dark"||(!t&&matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.classList.add("dark")}catch(e){}`,
+            __html: `try{var t=localStorage.getItem("theme");if(t==="dark"||(!t&&matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.classList.add("dark");var d=document.documentElement.classList.contains("dark"),m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",d?"#0d0d0d":"#f4f4f1")}catch(e){}`,
           }}
         />
       </head>

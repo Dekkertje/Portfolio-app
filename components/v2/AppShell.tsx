@@ -82,7 +82,7 @@ export function AppShell({ children, requireAuth = true }: { children: React.Rea
       {/* Telefoon: tabbalk onderin */}
       <nav
         aria-label="Hoofdmenu"
-        className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/85 backdrop-blur-xl lg:hidden"
+        className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-plane/90 backdrop-blur-xl lg:hidden"
       >
         <div className="mx-auto grid max-w-md grid-cols-4">
           {TABS.map((item) => (

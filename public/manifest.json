@@ -6,8 +6,8 @@
   "start_url": "/overzicht",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#f4f4f1",
+  "background_color": "#0d0d0d",
+  "theme_color": "#0d0d0d",
   "orientation": "portrait",
   "lang": "nl",
   "icons": [
