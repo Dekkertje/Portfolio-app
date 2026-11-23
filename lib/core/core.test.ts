@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { buildDailySeries, buildState, flowsFromSeries, twr, valuePortfolio, xirr } from "./index"
+import { buildDailySeries, buildState, flowsFromSeries, sellResults, splitFactorSince, twr, valuePortfolio, xirr } from "./index"
 import type { LedgerEvent, Quote } from "./types"
 
 let seq = 0
@@ -186,5 +186,26 @@ describe("buildDailySeries", () => {
       { date: "2024-01-02", amount: -1500 },
       { date: "2024-01-04", amount: 1720 },
     ])
+  })
+})
+
+describe("sellResults / splitFactorSince", () => {
+  const events = [
+    buy("2024-01-02", "ASML", 10, 1002, 2),
+    buy("2024-02-01", "ASML", 10, 1202, 2),
+    { ...sell("2024-03-01", "ASML", 5, 649, 1), id: "sell-1" },
+    ev({ date: "2024-06-10", type: "split", instrumentId: "ASML", amountEur: 0, splitRatio: 4 }),
+  ]
+
+  it("resultaat per verkoop tegen de gemiddelde kostprijs op dat moment", () => {
+    const r = sellResults(events).get("sell-1")!
+    expect(r.costBasisEur).toBeCloseTo(551, 6)
+    expect(r.realizedEur).toBeCloseTo(98, 6)
+    expect(r.returnPct).toBeCloseTo(98 / 551, 10)
+  })
+
+  it("splitfactor geldt alleen voor splits ná de aankoopdatum", () => {
+    expect(splitFactorSince(events, "ASML", "2024-01-02")).toBe(4)
+    expect(splitFactorSince(events, "ASML", "2024-07-01")).toBe(1)
   })
 })

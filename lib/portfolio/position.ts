@@ -3,7 +3,25 @@
  * kostprijs, resultaat en alle bijbehorende events. Puur, geen I/O.
  */
 
-import { buildState, makeSeriesLookup, weekdays, type Currency, type IsoDate, type LedgerEvent } from "@/lib/core"
+import { buildState, makeSeriesLookup, sellResults, sortEvents, splitFactorSince, weekdays, type Currency, type IsoDate, type LedgerEvent } from "@/lib/core"
+
+export type PositionTrade = {
+  id: string
+  d: IsoDate
+  type: "buy" | "sell"
+  quantity: number
+  /** Prijs per stuk in EUR incl. kosten (koop) of na kosten (verkoop) */
+  priceEur: number
+  amountEur: number
+  /** Verkoop: gerealiseerd resultaat t.o.v. de gemiddelde kostprijs */
+  realizedEur: number | null
+  /** Koop: hoe het deel dat nog in bezit is er nu voor staat (huidige koers vs. aankoopprijs) */
+  sinceEur: number | null
+  /** Koop: stuks van deze aankoop die nog in bezit zijn (FIFO, in stuks van vandaag na splits) */
+  openQuantity: number | null
+  /** Rendement van de trade: verkoop t.o.v. kostprijs, koop t.o.v. aankoopbedrag */
+  returnPct: number | null
+}
 
 export type PositionDetail = {
   instrument: {
@@ -33,7 +51,7 @@ export type PositionDetail = {
   totalReturnEur: number | null
   /** Koers in EUR per werkdag sinds het eerste event */
   series: { d: IsoDate; p: number }[]
-  trades: { d: IsoDate; type: "buy" | "sell"; quantity: number; priceEur: number }[]
+  trades: PositionTrade[]
   events: LedgerEvent[]
 }
 
@@ -96,9 +114,56 @@ export function buildPositionDetail(input: {
     dayChangePct: quote?.previousClose ? quote.price / quote.previousClose - 1 : null,
     totalReturnEur: quantity > 0 && unrealized == null ? null : round2((unrealized ?? 0) + (p?.realizedEur ?? 0) + (p?.dividendsEur ?? 0)),
     series,
-    trades: mine
-      .filter((e): e is LedgerEvent & { type: "buy" | "sell" } => (e.type === "buy" || e.type === "sell") && e.quantity > 0)
-      .map((e) => ({ d: e.date, type: e.type, quantity: e.quantity, priceEur: Math.abs(e.amountEur) / e.quantity })),
+    trades: tradesWithResults(mine, instrumentId, priceEur),
     events: [...mine].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)),
   }
+}
+
+/**
+ * Resultaat per trade. Verkopen: t.o.v. de gemiddelde kostprijs (zoals het grootboek).
+ * Aankopen: welk deel nog in bezit is volgt FIFO (verkopen gaan van de oudste
+ * aankoop af); alleen over dat deel tonen we het resultaat sinds aankoop.
+ */
+function tradesWithResults(mine: LedgerEvent[], instrumentId: string, priceEurNow: number | null): PositionTrade[] {
+  const sells = sellResults(mine)
+  // Dezelfde volgorde als de kern: binnen een dag eerst kopen, dan verkopen (daytrades)
+  const ordered = sortEvents(mine)
+
+  // FIFO-lots, in stuks van na eventuele splits
+  const lots: { id: string; remaining: number }[] = []
+  for (const e of ordered) {
+    if (e.type === "buy" && e.quantity > 0) lots.push({ id: e.id, remaining: e.quantity })
+    else if (e.type === "split" && e.splitRatio) lots.forEach((l) => (l.remaining *= e.splitRatio!))
+    else if (e.type === "sell") {
+      let left = e.quantity
+      for (const l of lots) {
+        if (left <= 0) break
+        const take = Math.min(l.remaining, left)
+        l.remaining -= take
+        left -= take
+      }
+    }
+  }
+  const openById = new Map(lots.map((l) => [l.id, l.remaining < 1e-9 ? 0 : l.remaining]))
+
+  return ordered
+    .filter((e): e is LedgerEvent & { type: "buy" | "sell" } => (e.type === "buy" || e.type === "sell") && e.quantity > 0)
+    .map((e) => {
+      const base = { id: e.id, d: e.date, type: e.type, quantity: e.quantity, priceEur: Math.abs(e.amountEur) / e.quantity, amountEur: e.amountEur }
+      if (e.type === "sell") {
+        const r = sells.get(e.id)
+        return { ...base, realizedEur: r ? round2(r.realizedEur) : null, sinceEur: null, openQuantity: null, returnPct: r?.returnPct ?? null }
+      }
+      const open = openById.get(e.id) ?? 0
+      const fullQty = e.quantity * splitFactorSince(mine, instrumentId, e.date)
+      const openCost = -e.amountEur * (fullQty > 0 ? open / fullQty : 0)
+      const nowValue = priceEurNow == null || open === 0 ? null : open * priceEurNow
+      return {
+        ...base,
+        realizedEur: null,
+        openQuantity: open,
+        sinceEur: nowValue == null ? null : round2(nowValue - openCost),
+        returnPct: nowValue == null || openCost <= 0 ? null : nowValue / openCost - 1,
+      }
+    })
 }

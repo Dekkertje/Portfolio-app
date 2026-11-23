@@ -1,5 +1,5 @@
 export * from "./types"
-export { applyEvent, buildState, emptyState, sortEvents, valuePortfolio } from "./portfolio"
+export { applyEvent, buildState, emptyState, sellResults, sortEvents, splitFactorSince, valuePortfolio, type TradeResult } from "./portfolio"
 export { buildDailySeries, externalFlow, type DailyPoint, type HistoryInput } from "./history"
 export { flowsFromSeries, twr, twrIndex, xirr, type CashFlow } from "./returns"
 export { makeSeriesLookup, weekdays } from "./lookup"

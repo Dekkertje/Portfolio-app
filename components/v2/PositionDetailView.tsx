@@ -1,13 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
-import { ChevronLeft } from "lucide-react"
-import { eur, money, quantity } from "@/lib/format"
+import { useMemo, useRef, useState } from "react"
+import { ChevronLeft, Minus, Plus } from "lucide-react"
+import { dateLong, eur, money, quantity } from "@/lib/format"
 import { sectorLabel } from "@/lib/instruments/sectors"
 import { displayName } from "@/lib/names"
-import type { PositionDetail } from "@/lib/portfolio/position"
-import { PriceChart } from "./PriceChart"
+import type { PositionDetail, PositionTrade } from "@/lib/portfolio/position"
+import { PriceChart, tradeResult } from "./PriceChart"
 import { TransactionRowItem } from "./TransactionsView"
 import { Amount, Card, Delta, Initials, Private, SectionTitle, Segmented, Skeleton } from "./ui"
 
@@ -23,6 +23,8 @@ const KIND_LABEL: Record<string, string> = { stock: "Aandeel", etf: "ETF", fund:
 
 export function PositionDetailView({ data, loading, error }: { data: PositionDetail | null; loading: boolean; error: string | null }) {
   const [period, setPeriod] = useState<Period>("1J")
+  const [selected, setSelected] = useState<string | null>(null)
+  const chartRef = useRef<HTMLDivElement>(null)
 
   const slice = useMemo(() => {
     if (!data?.series.length) return { series: [], trades: [] }
@@ -33,6 +35,13 @@ export function PositionDetailView({ data, loading, error }: { data: PositionDet
     const start = period === "ALL" ? data.series[0].d : last.toISOString().slice(0, 10)
     return { series: data.series.filter((p) => p.d >= start), trades: data.trades.filter((t) => t.d >= start) }
   }, [data, period])
+
+  /** Trade in de lijst gekozen: zorg dat hij in de grafiekperiode valt en scroll ernaartoe */
+  function selectTrade(t: PositionTrade) {
+    setSelected(selected === t.id ? null : t.id)
+    if (slice.series.length && t.d < slice.series[0].d) setPeriod("ALL")
+    chartRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+  }
 
   return (
     <div className="flex flex-col gap-5 pt-6 lg:pt-10">
@@ -97,29 +106,38 @@ export function PositionDetailView({ data, loading, error }: { data: PositionDet
           </div>
 
           {data.series.length > 1 && (
+            <div ref={chartRef}>
             <Card className="p-4 sm:p-6">
               <SectionTitle>Koers in euro</SectionTitle>
               <Segmented label="Periode" options={PERIODS} value={period} onChange={setPeriod} fill />
               <div className="mt-4">
-                <PriceChart series={slice.series} trades={slice.trades} avgCost={data.avgCostEur} />
+                <PriceChart series={slice.series} trades={slice.trades} avgCost={data.avgCostEur} highlightId={selected} />
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1 text-xs text-ink-2">
                 <span className="flex items-center gap-1.5"><span className="h-0.5 w-3.5 rounded-full bg-accent" aria-hidden /> Koers</span>
                 <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-ink" aria-hidden /> Koop</span>
                 <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full border-2 border-ink" aria-hidden /> Verkoop</span>
                 {data.avgCostEur != null && <span className="flex items-center gap-1.5"><span className="h-0.5 w-3.5 rounded-full bg-muted" aria-hidden /> Gem. aankoopkoers</span>}
+                <span className="w-full text-muted sm:w-auto sm:ml-auto">Groen = winst, rood = verlies op die trade</span>
               </div>
             </Card>
+            </div>
           )}
 
-          <Card className="p-4 sm:p-6">
-            <SectionTitle>Transacties</SectionTitle>
-            <ul className="divide-y divide-line">
-              {data.events.map((e) => (
-                <TransactionRowItem key={e.id} t={{ ...e, name: null, symbol: null }} />
-              ))}
-            </ul>
-          </Card>
+          {data.trades.length > 0 && <TradeList trades={data.trades} selected={selected} onSelect={selectTrade} />}
+
+          {data.events.some((e) => e.type !== "buy" && e.type !== "sell") && (
+            <Card className="p-4 sm:p-6">
+              <SectionTitle>Dividend en overige</SectionTitle>
+              <ul className="divide-y divide-line">
+                {data.events
+                  .filter((e) => e.type !== "buy" && e.type !== "sell")
+                  .map((e) => (
+                    <TransactionRowItem key={e.id} t={{ ...e, name: null, symbol: null }} />
+                  ))}
+              </ul>
+            </Card>
+          )}
         </>
       )}
     </div>
@@ -135,4 +153,65 @@ function Stat({ label, value, sub, tone }: { label: string; value: React.ReactNo
       {sub && <p className="truncate text-xs text-muted">{sub}</p>}
     </Card>
   )
+}
+
+/** Alle aan- en verkopen met hun resultaat; tikken markeert de trade op de grafiek. */
+function TradeList({ trades, selected, onSelect }: { trades: PositionTrade[]; selected: string | null; onSelect: (t: PositionTrade) => void }) {
+  const sells = trades.filter((t) => t.type === "sell")
+  const realized = sells.reduce((s, t) => s + (t.realizedEur ?? 0), 0)
+  const won = sells.filter((t) => (t.realizedEur ?? 0) > 0).length
+  return (
+    <Card className="p-4 sm:p-6">
+      <SectionTitle>Aan- en verkopen</SectionTitle>
+      {sells.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[13px] text-ink-2">
+          <span>
+            Gerealiseerd <Delta value={realized} size="xs" />
+          </span>
+          <span className="text-muted">
+            {won} van {sells.length} verkopen met winst
+          </span>
+        </div>
+      )}
+      <ul className="divide-y divide-line">
+        {[...trades].reverse().map((t) => {
+          const r = tradeResult(t)
+          const Icon = t.type === "buy" ? Plus : Minus
+          return (
+            <li key={t.id}>
+              <button
+                onClick={() => onSelect(t)}
+                aria-pressed={selected === t.id}
+                className={`-mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-2xl px-2 py-3 text-left transition-colors ${selected === t.id ? "bg-surface-2" : "hover:bg-surface-2/60"}`}
+              >
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-surface-2 text-ink-2">
+                  <Icon size={18} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[14px] font-medium text-ink">
+                    {t.type === "buy" ? "Koop" : "Verkoop"} <Private>{quantity(t.quantity)}</Private> × {eur(t.priceEur)}
+                  </p>
+                  <p className="text-[12px] text-muted">{dateLong(t.d)}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  {r != null ? <Delta value={r} percent={t.returnPct} size="xs" /> : <span className="text-xs text-muted">{t.openQuantity === 0 ? "verkocht" : "—"}</span>}
+                  <p className="text-[11px] text-muted">{tradeLabel(t)}</p>
+                </div>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+      <p className="mt-3 px-1 text-[12px] text-muted">
+        Verkoop: opbrengst min de gemiddelde aankoopprijs van de verkochte stuks. Koop: hoe het deel dat je nog hebt ervoor staat met de huidige koers; verkopen gaan van de oudste aankoop af.
+      </p>
+    </Card>
+  )
+}
+
+function tradeLabel(t: PositionTrade): string {
+  if (t.type === "sell") return "gerealiseerd"
+  if (t.openQuantity === 0) return "zit in een verkoop"
+  if (t.openQuantity != null && t.openQuantity < t.quantity - 1e-9) return `nog ${quantity(t.openQuantity)} in bezit`
+  return "sinds aankoop"
 }

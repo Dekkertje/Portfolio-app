@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server"
-import type { LedgerEvent } from "@/lib/core"
+import { sellResults, type LedgerEvent } from "@/lib/core"
 import { loadLedger } from "@/lib/ledger/repository"
 import { createRouteHandlerClient } from "@/lib/supabase/server"
 
-export type TransactionRow = Omit<LedgerEvent, "instrumentId"> & { instrumentId: string | null; name: string | null; symbol: string | null }
+export type TransactionRow = Omit<LedgerEvent, "instrumentId"> & {
+  instrumentId: string | null
+  name: string | null
+  symbol: string | null
+  /** Alleen bij verkopen: resultaat t.o.v. de gemiddelde kostprijs */
+  realizedEur?: number
+  returnPct?: number | null
+}
 export type TransactionsResponse = { transactions: TransactionRow[] }
 
 // GET /api/v2/transactions — het volledige grootboek, nieuwste eerst
@@ -24,10 +31,17 @@ export async function GET(request: Request) {
   const { events, instruments } = await loadLedger(db, portfolio.id)
   if (!events.length) return NextResponse.json({ empty: true })
 
+  const sells = sellResults(events)
   const transactions: TransactionRow[] = events
     .map((e) => {
       const inst = e.instrumentId ? instruments.get(e.instrumentId) : undefined
-      return { ...e, name: inst?.name ?? null, symbol: inst?.yahoo_symbol ?? null }
+      const sell = sells.get(e.id)
+      return {
+        ...e,
+        name: inst?.name ?? null,
+        symbol: inst?.yahoo_symbol ?? null,
+        ...(sell ? { realizedEur: Math.round(sell.realizedEur * 100) / 100, returnPct: sell.returnPct } : {}),
+      }
     })
     .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
 

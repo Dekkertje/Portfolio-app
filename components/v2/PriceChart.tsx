@@ -2,7 +2,15 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { dateLong, dateMonth, dateShort, eur, quantity as fmtQty } from "@/lib/format"
-import type { PositionDetail } from "@/lib/portfolio/position"
+import type { PositionDetail, PositionTrade } from "@/lib/portfolio/position"
+import { Delta } from "./ui"
+
+/** Resultaat van een trade: verkoop = gerealiseerd, koop = hoe hij er nu voor staat */
+export const tradeResult = (t: PositionTrade) => (t.type === "sell" ? t.realizedEur : t.sinceEur)
+const resultColor = (t: PositionTrade) => {
+  const r = tradeResult(t)
+  return r == null || r === 0 ? "var(--ink)" : r > 0 ? "var(--up)" : "var(--down)"
+}
 
 const PAD = { top: 14, right: 56, bottom: 26, left: 4 }
 
@@ -16,16 +24,22 @@ function niceTicks(min: number, max: number, count = 4): number[] {
   return out
 }
 
-/** Koers in EUR met aan-/verkoopmarkeringen en de gemiddelde aankoopkoers. */
+/**
+ * Koers in EUR met aan-/verkoopmarkeringen en de gemiddelde aankoopkoers.
+ * Vorm = soort (koop gevuld, verkoop open), kleur = resultaat van die trade.
+ */
 export function PriceChart({
   series,
   trades,
   avgCost,
+  highlightId = null,
   height = 260,
 }: {
   series: PositionDetail["series"]
   trades: PositionDetail["trades"]
   avgCost: number | null
+  /** Trade die in de lijst gekozen is: gemarkeerd en met tooltip */
+  highlightId?: string | null
   height?: number
 }) {
   const wrap = useRef<HTMLDivElement>(null)
@@ -76,7 +90,10 @@ export function PriceChart({
     return Math.max(0, Math.min(series.length - 1, Math.round(rel * (series.length - 1))))
   }
 
-  const a = active != null ? series[active] : null
+  const highlighted = highlightId ? trades.find((t) => t.id === highlightId) : undefined
+  const highlightIndex = highlighted && geo ? (geo.index.get(highlighted.d) ?? null) : null
+  const shown = active ?? highlightIndex
+  const a = shown != null ? series[shown] : null
   const tradesOnActive = a ? trades.filter((t) => t.d === a.d) : []
 
   return (
@@ -120,34 +137,46 @@ export function PriceChart({
           )}
           <path d={geo.line} fill="none" stroke="var(--accent)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
 
-          {geo.markers.map((m, k) =>
-            m.type === "buy" ? (
-              <circle key={k} cx={m.cx} cy={m.cy} r={4.5} fill="var(--ink)" stroke="var(--surface)" strokeWidth={2} />
-            ) : (
-              <circle key={k} cx={m.cx} cy={m.cy} r={4.5} fill="var(--surface)" stroke="var(--ink)" strokeWidth={2} />
-            ),
+          {a && (
+            <line x1={geo.x(shown!)} x2={geo.x(shown!)} y1={PAD.top} y2={PAD.top + geo.innerH} stroke="var(--axis)" strokeWidth={1} shapeRendering="crispEdges" />
           )}
 
-          {a && (
-            <g>
-              <line x1={geo.x(active!)} x2={geo.x(active!)} y1={PAD.top} y2={PAD.top + geo.innerH} stroke="var(--axis)" strokeWidth={1} shapeRendering="crispEdges" />
-              <circle cx={geo.x(active!)} cy={geo.y(a.p)} r={5} fill="var(--accent)" stroke="var(--surface)" strokeWidth={2} />
+          {geo.markers.map((m) => (
+            <g key={m.id}>
+              {m.id === highlightId && <circle cx={m.cx} cy={m.cy} r={10} fill="none" stroke="var(--ink)" strokeWidth={1.5} />}
+              {m.type === "buy" ? (
+                <circle cx={m.cx} cy={m.cy} r={5} fill={resultColor(m)} stroke="var(--surface)" strokeWidth={2} />
+              ) : (
+                <circle cx={m.cx} cy={m.cy} r={4.5} fill="var(--surface)" stroke={resultColor(m)} strokeWidth={2.5} />
+              )}
             </g>
-          )}
+          ))}
+
+          {a && !tradesOnActive.length && <circle cx={geo.x(shown!)} cy={geo.y(a.p)} r={5} fill="var(--accent)" stroke="var(--surface)" strokeWidth={2} />}
         </svg>
       )}
 
       {a && geo && (
         <div
-          className="pointer-events-none absolute top-0 z-10 w-48 rounded-2xl bg-surface p-3 shadow-lg ring-1 ring-line animate-fade-in"
-          style={{ left: Math.min(Math.max(geo.x(active!) - 96, 0), width - 192), transform: geo.y(a.p) < 100 ? `translateY(${height - 120}px)` : undefined }}
+          className="pointer-events-none absolute top-0 z-10 w-56 rounded-2xl bg-surface p-3 shadow-lg ring-1 ring-line animate-fade-in"
+          style={{ left: Math.min(Math.max(geo.x(shown!) - 112, 0), width - 224), transform: geo.y(a.p) < 110 ? `translateY(${height - 140}px)` : undefined }}
         >
           <p className="text-xs text-muted">{dateLong(a.d)}</p>
           <p className="mt-1 text-sm font-semibold text-ink">{eur(a.p)}</p>
-          {tradesOnActive.map((t, k) => (
-            <p key={k} className="mt-1 text-xs text-ink-2">
-              {t.type === "buy" ? "Koop" : "Verkoop"} {fmtQty(t.quantity)} × {eur(t.priceEur)}
-            </p>
+          {tradesOnActive.map((t) => (
+            <div key={t.id} className="mt-2 border-t border-line pt-2">
+              <p className="text-xs text-ink-2">
+                {t.type === "buy" ? "Koop" : "Verkoop"} {fmtQty(t.quantity)} × {eur(t.priceEur)}
+              </p>
+              {tradeResult(t) != null ? (
+                <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
+                  {t.type === "buy" ? (t.openQuantity != null && t.openQuantity < t.quantity - 1e-9 ? `nu (${fmtQty(t.openQuantity)} st.)` : "nu") : "resultaat"}
+                  <Delta value={tradeResult(t)} percent={t.returnPct} size="xs" />
+                </p>
+              ) : t.type === "buy" && t.openQuantity === 0 ? (
+                <p className="mt-0.5 text-xs text-muted">Inmiddels verkocht</p>
+              ) : null}
+            </div>
           ))}
         </div>
       )}

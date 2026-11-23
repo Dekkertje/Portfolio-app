@@ -6,7 +6,7 @@ import type { TransactionRow, TransactionsResponse } from "@/app/api/v2/transact
 import type { LedgerEvent } from "@/lib/core"
 import { dateShort, eur, money, quantity } from "@/lib/format"
 import { displayName } from "./PositionList"
-import { Card, Private, Segmented, Skeleton } from "./ui"
+import { Card, Delta, Private, Segmented, Skeleton } from "./ui"
 
 type Filter = "all" | "trade" | "income" | "cash" | "costs"
 
@@ -131,9 +131,12 @@ export function TransactionRowItem({ t }: { t: TransactionRow }) {
         </p>
       </div>
       {t.type !== "split" && (
-        <Private className={`shrink-0 text-[14px] font-semibold ${t.amountEur > 0 ? "text-up" : "text-ink"}`}>
-          {eur(t.amountEur, { sign: true })}
-        </Private>
+        <div className="shrink-0 text-right">
+          <Private className={`block text-[14px] font-semibold ${t.amountEur > 0 && t.type !== "sell" ? "text-up" : "text-ink"}`}>
+            {eur(t.amountEur, { sign: true })}
+          </Private>
+          {t.realizedEur != null && <Delta value={t.realizedEur} percent={t.returnPct ?? null} size="xs" />}
+        </div>
       )}
     </li>
   )

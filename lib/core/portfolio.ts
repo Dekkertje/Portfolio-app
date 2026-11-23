@@ -123,6 +123,41 @@ export function buildState(events: LedgerEvent[], upTo?: IsoDate): PortfolioStat
   return state
 }
 
+export type TradeResult = {
+  /** Verkoop: kostprijs van de verkochte stuks (gemiddelde-kostprijsmethode, incl. aankoopkosten) */
+  costBasisEur: number
+  /** Verkoop: opbrengst − kostprijs */
+  realizedEur: number
+  /** Verkoop: rendement op de kostprijs */
+  returnPct: number | null
+}
+
+/**
+ * Resultaat per verkoop, met dezelfde boekhouding als applyEvent: de verkochte
+ * stuks tegen de gemiddelde kostprijs op dat moment.
+ */
+export function sellResults(events: LedgerEvent[]): Map<string, TradeResult> {
+  const state = emptyState()
+  const out = new Map<string, TradeResult>()
+  for (const e of sortEvents(events)) {
+    if (e.type === "sell" && e.instrumentId) {
+      const p = state.positions.get(e.instrumentId)
+      const sold = Math.min(e.quantity, p?.quantity ?? 0)
+      const cost = p && p.quantity > 0 ? (p.costBasisEur / p.quantity) * sold : 0
+      out.set(e.id, { costBasisEur: cost, realizedEur: e.amountEur - cost, returnPct: cost > 0 ? (e.amountEur - cost) / cost : null })
+    }
+    applyEvent(state, e)
+  }
+  return out
+}
+
+/** Factor waarmee stuks van een aankoop op `date` vandaag vermenigvuldigd zijn door latere splits. */
+export function splitFactorSince(events: LedgerEvent[], instrumentId: string, date: IsoDate): number {
+  return events
+    .filter((e) => e.type === "split" && e.instrumentId === instrumentId && e.date > date && e.splitRatio)
+    .reduce((f, e) => f * e.splitRatio!, 1)
+}
+
 /** Waardeert de state met actuele koersen. Ontbreekt een koers, dan telt de positie tegen kostprijs. */
 export function valuePortfolio(
   state: PortfolioState,
