@@ -16,6 +16,7 @@ import {
   type LedgerEvent,
   type Quote,
 } from "@/lib/core"
+import { yearlySummaries, type YearSummary } from "./yearly"
 
 export type OverviewInstrument = {
   id: string
@@ -106,6 +107,8 @@ export type PortfolioOverview = {
   closed: ClosedPosition[]
   series: OverviewPoint[]
   composition: Composition
+  /** Jaaroverzicht per kalenderjaar, nieuwste eerst */
+  years: YearSummary[]
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -234,6 +237,13 @@ export function buildOverview(input: {
     closed,
     series,
     composition: buildComposition(positions, instruments, state.tracksCash ? state.cashEur : 0, input.benchmark ?? null),
+    years: yearlySummaries({
+      events,
+      series,
+      isinOf: (id) => instruments.get(id)?.isin ?? null,
+      tracksCash: state.tracksCash,
+      today,
+    }),
   }
 }
 

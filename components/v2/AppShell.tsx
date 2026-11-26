@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import {
   ArrowLeftRight,
+  FileText,
   Bell,
   CalendarDays,
   Ellipsis,
@@ -34,6 +35,7 @@ const TABS: NavItem[] = [
 
 const MORE: NavItem[] = [
   { href: "/transacties", label: "Transacties", icon: ArrowLeftRight },
+  { href: "/jaaroverzicht", label: "Jaaroverzicht", icon: FileText },
   { href: "/importeren", label: "Importeren", icon: Upload },
   { href: "/notificaties", label: "Notificaties", icon: Bell },
   { href: "/instellingen", label: "Instellingen", icon: Settings },
