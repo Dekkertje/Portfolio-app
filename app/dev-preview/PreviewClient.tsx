@@ -11,6 +11,9 @@ import { OverviewView } from "@/components/v2/OverviewView"
 import type { ImportPreview } from "@/lib/import/preview"
 import { PositionsView } from "@/components/v2/PositionsView"
 import type { PortfolioOverview } from "@/lib/portfolio/overview"
+import { compareWithBenchmark } from "@/lib/portfolio/compare"
+import { ReturnChart } from "@/components/v2/ReturnChart"
+import { Card } from "@/components/v2/ui"
 
 const fakeApi = {
   preview: async () => {
@@ -27,6 +30,19 @@ const fakeApi = {
 
 const noopNotifications = { create: async () => {}, toggle: async () => {}, remove: async () => {} }
 
+/** Vergelijkingsgrafiek met echte MSCI World-koersen (de echte kaart haalt die op via een ingelogde API). */
+function ComparePreview({ series, closes }: { series: PortfolioOverview["series"]; closes: [string, number][] }) {
+  const from = series.findIndex((p) => p.d >= "2025-11-14")
+  const points = compareWithBenchmark(series.slice(Math.max(0, from - 1)), closes)
+  return (
+    <div className="pt-10">
+      <Card className="p-4 sm:p-6">
+        <ReturnChart points={points} benchLabel="MSCI World" />
+      </Card>
+    </div>
+  )
+}
+
 export function PreviewClient({
   data,
   page,
@@ -42,7 +58,9 @@ export function PreviewClient({
   const base = { loading: false, error: null, empty: false }
   return (
     <AppShell requireAuth={false}>
-      {page === "detail" ? (
+      {page === "vergelijk" ? (
+        <ComparePreview series={data.series} closes={extra} />
+      ) : page === "detail" ? (
         <PositionDetailView data={extra} loading={false} error={null} />
       ) : page === "instellingen" ? (
         <SettingsView />

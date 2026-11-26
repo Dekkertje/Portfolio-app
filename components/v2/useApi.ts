@@ -43,9 +43,14 @@ function load(url: string): Promise<void> {
   return s.inFlight
 }
 
-/** Eenvoudige gedeelde cache per API-url; tussen tabs wisselen haalt niets opnieuw op binnen `maxAgeMs`. */
-export function useApi<T>(url: string, maxAgeMs = 5 * 60_000) {
-  const s = store(url)
+const IDLE = "__idle__"
+
+/**
+ * Eenvoudige gedeelde cache per API-url; tussen tabs wisselen haalt niets opnieuw op binnen `maxAgeMs`.
+ * `url = null` haalt (nog) niets op.
+ */
+export function useApi<T>(url: string | null, maxAgeMs = 5 * 60_000) {
+  const s = store(url ?? IDLE)
   const state = useSyncExternalStore(
     (l) => {
       s.listeners.add(l)
@@ -56,10 +61,10 @@ export function useApi<T>(url: string, maxAgeMs = 5 * 60_000) {
   ) as Entry<T>
 
   useEffect(() => {
-    if (Date.now() - store(url).state.fetchedAt > maxAgeMs) load(url)
+    if (url && Date.now() - store(url).state.fetchedAt > maxAgeMs) load(url)
   }, [url, maxAgeMs])
 
-  const refresh = useCallback(() => load(url), [url])
+  const refresh = useCallback(() => (url ? load(url) : Promise.resolve()), [url])
   return { ...state, refresh }
 }
 
