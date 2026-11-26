@@ -20,7 +20,7 @@ export type NotificationEvent = { id: string; ticker: string | null; title: stri
 export type NotificationsResponse = {
   rules: NotificationRule[]
   events: NotificationEvent[]
-  /** Open posities met een Yahoo-symbool, om een regel voor aan te maken */
+  /** Open posities en volglijst-effecten met een Yahoo-symbool, om een regel voor aan te maken */
   positions: { ticker: string; name: string; price: number | null; currency: string | null }[]
 }
 
@@ -46,6 +46,22 @@ export async function GET(request: Request) {
     positions = withSymbol
       .map((i) => ({ ticker: i!.yahoo_symbol!, name: i!.name, price: quoteById.get(i!.id)?.price ?? null, currency: quoteById.get(i!.id)?.currency ?? null }))
       .sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+  // Effecten op de volglijst kun je ook volgen met een regel
+  const { data: watch } = await db
+    .from("watchlist")
+    .select("instrument_id, instruments(name, yahoo_symbol)")
+    .eq("user_id", auth.user.id)
+  type W = { instrument_id: string; instruments: { name: string; yahoo_symbol: string | null } | null }
+  const watched = ((watch ?? []) as unknown as W[]).filter((w) => w.instruments?.yahoo_symbol && !positions.some((p) => p.ticker === w.instruments!.yahoo_symbol))
+  if (watched.length) {
+    const { data: wq } = await db.from("latest_quotes").select("instrument_id, price, currency").in("instrument_id", watched.map((w) => w.instrument_id))
+    const byId = new Map((wq ?? []).map((q) => [q.instrument_id as string, q]))
+    positions = [
+      ...positions,
+      ...watched.map((w) => ({ ticker: w.instruments!.yahoo_symbol!, name: w.instruments!.name, price: byId.get(w.instrument_id)?.price ?? null, currency: byId.get(w.instrument_id)?.currency ?? null })),
+    ].sort((a, b) => a.name.localeCompare(b.name))
   }
 
   return NextResponse.json(

@@ -6,7 +6,18 @@ import { Card, Delta, Initials, Private, SectionTitle, Skeleton } from "./ui"
 import { eur } from "@/lib/format"
 import type { PortfolioOverview } from "@/lib/portfolio/overview"
 
-export function PositionsView({ data, loading, error }: { data: PortfolioOverview | null; loading: boolean; error: string | null }) {
+export function PositionsView({
+  data,
+  loading,
+  error,
+  children,
+}: {
+  data: PortfolioOverview | null
+  loading: boolean
+  error: string | null
+  /** Extra secties onderaan, zoals de volglijst */
+  children?: React.ReactNode
+}) {
   return (
     <div className="flex flex-col gap-5 pt-6 lg:pt-10">
       <header className="px-1">
@@ -52,6 +63,7 @@ export function PositionsView({ data, loading, error }: { data: PortfolioOvervie
           )}
         </>
       )}
+      {children}
     </div>
   )
 }

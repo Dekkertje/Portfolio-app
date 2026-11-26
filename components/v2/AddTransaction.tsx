@@ -155,7 +155,7 @@ export function AddTransactionSheet({ onClose, onSaved }: { onClose: () => void;
   )
 }
 
-function InstrumentPicker({ value, onChange }: { value: InstrumentHit | null; onChange: (hit: InstrumentHit | null) => void }) {
+export function InstrumentPicker({ value, onChange }: { value: InstrumentHit | null; onChange: (hit: InstrumentHit | null) => void }) {
   const [q, setQ] = useState("")
   const [hits, setHits] = useState<InstrumentHit[]>([])
   const [loading, setLoading] = useState(false)
