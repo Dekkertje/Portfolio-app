@@ -1,10 +1,11 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { ArrowDownToLine, ArrowUpFromLine, Coins, Minus, Plus, Receipt, Scissors, Search, type LucideIcon } from "lucide-react"
+import { ArrowDownToLine, ArrowUpFromLine, Coins, Minus, Plus, Receipt, Scissors, Search, Trash2, type LucideIcon } from "lucide-react"
 import type { TransactionRow, TransactionsResponse } from "@/app/api/v2/transactions/route"
 import type { LedgerEvent } from "@/lib/core"
 import { dateShort, eur, money, quantity } from "@/lib/format"
+import { AddTransactionSheet } from "./AddTransaction"
 import { displayName } from "./PositionList"
 import { Card, Delta, Private, Segmented, Skeleton } from "./ui"
 
@@ -33,7 +34,24 @@ const META: Record<LedgerEvent["type"], { label: string; icon: LucideIcon }> = {
 const PAGE = 80
 const monthFmt = new Intl.DateTimeFormat("nl-NL", { month: "long", year: "numeric", timeZone: "UTC" })
 
-export function TransactionsView({ data, loading, error, empty }: { data: TransactionsResponse | null; loading: boolean; error: string | null; empty: boolean }) {
+export function TransactionsView({
+  data,
+  loading,
+  error,
+  empty,
+  onChanged,
+  onDelete,
+}: {
+  data: TransactionsResponse | null
+  loading: boolean
+  error: string | null
+  empty: boolean
+  /** Na toevoegen/verwijderen: data opnieuw ophalen */
+  onChanged?: () => void
+  /** Handmatige transactie verwijderen */
+  onDelete?: (id: string) => Promise<void>
+}) {
+  const [adding, setAdding] = useState(false)
   const [filter, setFilter] = useState<Filter>("all")
   const [query, setQuery] = useState("")
   const [limit, setLimit] = useState(PAGE)
@@ -59,10 +77,27 @@ export function TransactionsView({ data, loading, error, empty }: { data: Transa
 
   return (
     <div className="flex flex-col gap-5 pt-6 lg:pt-10">
-      <header className="px-1">
-        <h1 className="text-[28px] font-semibold tracking-tight lg:text-[32px]">Transacties</h1>
-        {data && <p className="text-[13px] text-muted">{data.transactions.length} regels in je grootboek</p>}
+      <header className="flex items-center justify-between gap-3 px-1">
+        <div>
+          <h1 className="text-[28px] font-semibold tracking-tight lg:text-[32px]">Transacties</h1>
+          {data && <p className="text-[13px] text-muted">{data.transactions.length} regels in je grootboek</p>}
+        </div>
+        {onChanged && (
+          <button onClick={() => setAdding(true)} className="flex h-10 items-center gap-1.5 rounded-full bg-ink px-4 text-[14px] font-medium text-surface">
+            <Plus size={17} /> Toevoegen
+          </button>
+        )}
       </header>
+
+      {adding && (
+        <AddTransactionSheet
+          onClose={() => setAdding(false)}
+          onSaved={() => {
+            setAdding(false)
+            onChanged?.()
+          }}
+        />
+      )}
 
       {loading && !data && <Skeleton className="h-96 rounded-3xl" />}
       {error && !data && <Card className="p-6 text-sm text-ink-2">{error}</Card>}
@@ -93,7 +128,7 @@ export function TransactionsView({ data, loading, error, empty }: { data: Transa
               </h2>
               <ul className="divide-y divide-line">
                 {g.rows.map((t) => (
-                  <TransactionRowItem key={t.id} t={t} />
+                  <TransactionRowItem key={t.id} t={t} onDelete={onDelete} />
                 ))}
               </ul>
             </section>
@@ -110,7 +145,9 @@ export function TransactionsView({ data, loading, error, empty }: { data: Transa
   )
 }
 
-export function TransactionRowItem({ t }: { t: TransactionRow }) {
+export function TransactionRowItem({ t, onDelete }: { t: TransactionRow; onDelete?: (id: string) => Promise<void> }) {
+  const manual = t.id.startsWith("manual:")
+  const [confirm, setConfirm] = useState(false)
   const meta = META[t.type]
   const Icon = meta.icon
   const title = t.name ? `${meta.label} · ${displayName(t.name)}` : meta.label
@@ -125,7 +162,10 @@ export function TransactionRowItem({ t }: { t: TransactionRow }) {
         <Icon size={18} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[14px] font-medium text-ink">{title}</p>
+        <p className="truncate text-[14px] font-medium text-ink">
+          {title}
+          {manual && <span className="ml-2 rounded-full bg-surface-2 px-1.5 py-0.5 align-middle text-[10px] font-medium text-ink-2">handmatig</span>}
+        </p>
         <p className="truncate text-[12px] text-muted">
           <Private>{detail}</Private>
         </p>
@@ -137,6 +177,17 @@ export function TransactionRowItem({ t }: { t: TransactionRow }) {
           </Private>
           {t.realizedEur != null && <Delta value={t.realizedEur} percent={t.returnPct ?? null} size="xs" />}
         </div>
+      )}
+      {manual && onDelete && (
+        confirm ? (
+          <button onClick={() => onDelete(t.id)} className="h-8 shrink-0 rounded-full bg-down-wash px-3 text-[12px] font-medium text-down">
+            Verwijderen?
+          </button>
+        ) : (
+          <button onClick={() => setConfirm(true)} aria-label="Handmatige transactie verwijderen" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted hover:bg-surface-2 hover:text-ink">
+            <Trash2 size={15} />
+          </button>
+        )
       )}
     </li>
   )

@@ -15,6 +15,7 @@ import { compareWithBenchmark } from "@/lib/portfolio/compare"
 import { ReturnChart } from "@/components/v2/ReturnChart"
 import { Card } from "@/components/v2/ui"
 import { YearsView } from "@/components/v2/YearsView"
+import { AddTransactionSheet } from "@/components/v2/AddTransaction"
 
 const fakeApi = {
   preview: async () => {
@@ -59,7 +60,9 @@ export function PreviewClient({
   const base = { loading: false, error: null, empty: false }
   return (
     <AppShell requireAuth={false}>
-      {page === "jaaroverzicht" ? (
+      {page === "toevoegen" ? (
+        <AddTransactionSheet onClose={() => {}} onSaved={() => {}} />
+      ) : page === "jaaroverzicht" ? (
         <YearsView data={data} loading={false} error={null} />
       ) : page === "vergelijk" ? (
         <ComparePreview series={data.series} closes={extra} />
