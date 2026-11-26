@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Bell, BellRing, Loader2, Plus, Trash2 } from "lucide-react"
 import type { NotificationRule, NotificationsResponse } from "@/app/api/v2/notifications/route"
 import { money, timeAgo } from "@/lib/format"
+import { disablePush, enablePush, pushStatus, sendTestPush, type PushStatus } from "@/lib/push"
 import { displayName } from "./PositionList"
 import { Sheet } from "./Sheet"
 import { Card, SectionTitle, Segmented, Skeleton } from "./ui"
@@ -50,6 +51,10 @@ export function NotificationsView({
   api: NotificationsApi
 }) {
   const [creating, setCreating] = useState(false)
+  const [push, setPush] = useState<PushStatus | null>(null)
+  useEffect(() => {
+    pushStatus().then(setPush).catch(() => setPush("unsupported"))
+  }, [])
 
   return (
     <div className="flex flex-col gap-5 pt-6 lg:pt-10">
@@ -67,6 +72,8 @@ export function NotificationsView({
 
       {loading && !data && <Skeleton className="h-64 rounded-3xl" />}
       {error && !data && <Card className="p-6 text-sm text-ink-2">{error}</Card>}
+
+      <PushCard status={push} onChange={setPush} />
 
       {data && (
         <div className="grid gap-5 lg:grid-cols-[1fr_380px] [&>*]:min-w-0">
@@ -122,6 +129,7 @@ export function NotificationsView({
       {creating && data && (
         <NewRuleSheet
           positions={data.positions}
+          pushOn={push === "on"}
           onClose={() => setCreating(false)}
           onCreate={async (rule) => {
             await api.create(rule)
@@ -176,10 +184,12 @@ function RuleRow({ rule, label, api, onChanged }: { rule: NotificationRule; labe
 
 function NewRuleSheet({
   positions,
+  pushOn,
   onClose,
   onCreate,
 }: {
   positions: NotificationsResponse["positions"]
+  pushOn: boolean
   onClose: () => void
   onCreate: (rule: Pick<NotificationRule, "rule_type" | "ticker" | "threshold" | "channels" | "name">) => Promise<void>
 }) {
@@ -187,6 +197,7 @@ function NewRuleSheet({
   const [type, setType] = useState<RuleType>("price_above")
   const [threshold, setThreshold] = useState("")
   const [email, setEmail] = useState(false)
+  const [viaPush, setViaPush] = useState(pushOn)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -205,7 +216,7 @@ function NewRuleSheet({
           setBusy(true)
           setError(null)
           try {
-            await onCreate({ rule_type: type, ticker, threshold: value, channels: email ? ["in_app", "email"] : ["in_app"], name: null })
+            await onCreate({ rule_type: type, ticker, threshold: value, channels: ["in_app", ...(viaPush ? ["push"] : []), ...(email ? ["email"] : [])], name: null })
           } catch (err) {
             setError(err instanceof Error ? err.message : String(err))
             setBusy(false)
@@ -243,6 +254,16 @@ function NewRuleSheet({
           </div>
         </label>
 
+        {pushOn && (
+          <label className="flex items-center justify-between gap-3 rounded-2xl bg-surface-2 px-4 py-3">
+            <span>
+              <span className="block text-[14px] font-medium text-ink">Pushmelding</span>
+              <span className="block text-[12px] text-muted">Op je aangemelde apparaten</span>
+            </span>
+            <input type="checkbox" checked={viaPush} onChange={(e) => setViaPush(e.target.checked)} className="h-5 w-5 accent-[var(--accent)]" />
+          </label>
+        )}
+
         <label className="flex items-center justify-between gap-3 rounded-2xl bg-surface-2 px-4 py-3">
           <span>
             <span className="block text-[14px] font-medium text-ink">Ook per e-mail</span>
@@ -259,5 +280,62 @@ function NewRuleSheet({
         </button>
       </form>
     </Sheet>
+  )
+}
+
+const PUSH_TEXT: Record<PushStatus, string> = {
+  on: "Aan op dit apparaat. Kies bij een regel of die ook als pushmelding komt.",
+  off: "Krijg een melding op je telefoon, ook als de app dicht is.",
+  denied: "Meldingen zijn geblokkeerd voor deze site. Zet ze aan in de instellingen van je browser of telefoon.",
+  unsupported: "Deze browser ondersteunt geen pushmeldingen.",
+  "ios-install": "Op de iPhone werken pushmeldingen alleen in de geïnstalleerde app: zet DekkerTracker eerst op je beginscherm (Safari → Deel → Zet op beginscherm).",
+}
+
+function PushCard({ status, onChange }: { status: PushStatus | null; onChange: (s: PushStatus) => void }) {
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  if (!status) return null
+
+  async function run(fn: () => Promise<void>) {
+    setBusy(true)
+    setMsg(null)
+    try {
+      await fn()
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:p-5">
+      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${status === "on" ? "bg-up-wash text-up" : "bg-surface-2 text-ink-2"}`}>
+        {status === "on" ? <BellRing size={18} /> : <Bell size={18} />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[14px] font-medium text-ink">Pushmeldingen</p>
+        <p className="text-[13px] text-ink-2">{msg ?? PUSH_TEXT[status]}</p>
+      </div>
+      {status === "off" && (
+        <button disabled={busy} onClick={() => run(async () => onChange(await enablePush()))} className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-ink px-4 text-[14px] font-medium text-surface disabled:opacity-50">
+          {busy && <Loader2 size={16} className="animate-spin" />} Aanzetten
+        </button>
+      )}
+      {status === "on" && (
+        <div className="flex shrink-0 gap-2">
+          <button
+            disabled={busy}
+            onClick={() => run(async () => { const n = await sendTestPush(); setMsg(`Testmelding verstuurd naar ${n} apparaat${n === 1 ? "" : "en"}.`) })}
+            className="flex h-10 items-center justify-center gap-2 rounded-full bg-surface-2 px-4 text-[14px] font-medium text-ink disabled:opacity-50"
+          >
+            {busy && <Loader2 size={16} className="animate-spin" />} Test
+          </button>
+          <button disabled={busy} onClick={() => run(async () => onChange(await disablePush()))} className="h-10 rounded-full px-3 text-[14px] font-medium text-ink-2 hover:bg-surface-2 disabled:opacity-50">
+            Uitzetten
+          </button>
+        </div>
+      )}
+    </Card>
   )
 }
