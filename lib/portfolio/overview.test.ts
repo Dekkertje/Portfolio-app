@@ -70,7 +70,7 @@ describe("buildComposition", () => {
     ({ instrumentId, valueEur, name: instrumentId, isin: "", kind: "", symbol: null, quantity: 1, price: null, currency: null, costEur: 0,
        unrealizedEur: null, unrealizedPct: null, dayChangeEur: null, dayChangePct: null, realizedEur: 0, dividendsEur: 0, weight: 0, stale: false })
   const instruments = new Map<string, OverviewInstrument>([
-    ["nvda", { id: "nvda", name: "NVIDIA", isin: "", kind: "stock", symbol: "NVDA", sector: "technology" }],
+    ["nvda", { id: "nvda", name: "NVIDIA", isin: "", kind: "stock", symbol: "NVDA", sector: "technology", country: "United States" }],
     ["qqq", { id: "qqq", name: "NASDAQ ETF", isin: "", kind: "etf", symbol: "EQQQ", sectorWeights: { technology: 0.5, communication_services: 0.3, consumer_cyclical: 0.2 } }],
     ["x", { id: "x", name: "ONBEKEND", isin: "", kind: "stock", symbol: null }],
   ])
@@ -88,5 +88,10 @@ describe("buildComposition", () => {
     expect(w.energy).toBe(0)
     expect(c.bySector).toHaveLength(11)
     expect(c.sectorCoverage).toBeCloseTo(1000 / 1100, 10)
+  })
+
+  it("aandelen per land; ETF's als aparte groep", () => {
+    expect(c.byCountry.map((k) => [k.key, k.valueEur])).toEqual([["United States", 600], ["funds", 400], ["unknown", 100]])
+    expect(c.byCountry.reduce((s, k) => s + k.weight, 0)).toBeCloseTo(1, 10)
   })
 })

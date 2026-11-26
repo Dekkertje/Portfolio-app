@@ -16,9 +16,9 @@ const KINDS: Record<string, { label: string; color: string }> = {
   other: { label: "Overig", color: "var(--muted)" },
 }
 
-/** Samenstelling: soort (aandelen/ETF's/cash) en sectoren t.o.v. de wereldindex. */
+/** Samenstelling: soort (aandelen/ETF's/cash), landen en sectoren t.o.v. de wereldindex. */
 export function Composition({ data }: { data: CompositionData }) {
-  const [tab, setTab] = useState<"kind" | "sector">("kind")
+  const [tab, setTab] = useState<"kind" | "country" | "sector">("kind")
   return (
     <Card className="p-4 sm:p-6">
       <SectionTitle>Samenstelling</SectionTitle>
@@ -30,14 +30,21 @@ export function Composition({ data }: { data: CompositionData }) {
           fill
           options={[
             { value: "kind", label: "Soort" },
+            { value: "country", label: "Landen" },
             { value: "sector", label: "Sectoren" },
           ]}
         />
       </div>
       <div className="grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-10">
-        <div className={tab === "kind" ? "" : "hidden lg:block"}>
-          <h3 className="mb-3 hidden text-[13px] font-medium text-ink-2 lg:block">Soort</h3>
-          <KindBar data={data} />
+        <div className="flex flex-col gap-8">
+          <div className={tab === "kind" ? "" : "hidden lg:block"}>
+            <h3 className="mb-3 hidden text-[13px] font-medium text-ink-2 lg:block">Soort</h3>
+            <KindBar data={data} />
+          </div>
+          <div className={tab === "country" ? "" : "hidden lg:block"}>
+            <h3 className="mb-3 hidden text-[13px] font-medium text-ink-2 lg:block">Landen</h3>
+            <Countries data={data} />
+          </div>
         </div>
         <div className={tab === "sector" ? "" : "hidden lg:block"}>
           <h3 className="mb-3 hidden text-[13px] font-medium text-ink-2 lg:block">Sectoren</h3>
@@ -132,6 +139,45 @@ function Sectors({ data }: { data: CompositionData }) {
         ETF&apos;s zijn doorgekeken naar hun onderliggende aandelen. Gebaseerd op {pct(data.sectorCoverage, { decimals: 0 })} van je effecten
         {data.benchmark ? `; streepje = ${data.benchmark.label}` : ""}.
       </p>
+    </div>
+  )
+}
+
+const COUNTRY_NL: Record<string, string> = {
+  "United States": "Verenigde Staten", Netherlands: "Nederland", "United Kingdom": "Verenigd Koninkrijk", Germany: "Duitsland",
+  France: "Frankrijk", Belgium: "België", Switzerland: "Zwitserland", Canada: "Canada", China: "China", Japan: "Japan",
+  Taiwan: "Taiwan", Denmark: "Denemarken", Sweden: "Zweden", Ireland: "Ierland", Spain: "Spanje", Italy: "Italië",
+  Luxembourg: "Luxemburg", Israel: "Israël", "South Korea": "Zuid-Korea", Australia: "Australië", Jersey: "Jersey",
+}
+
+const countryLabel = (key: string) => (key === "funds" ? "ETF's (gespreid)" : key === "unknown" ? "Onbekend" : (COUNTRY_NL[key] ?? key))
+
+/** Aandelen per land; ETF's apart omdat hun landenverdeling niet bekend is. Eén kleur: het gaat om hoeveelheid. */
+function Countries({ data }: { data: CompositionData }) {
+  const rows = data.byCountry
+  const max = Math.max(...rows.map((r) => r.weight), 0.0001)
+  return (
+    <div>
+      <ul className="flex flex-col gap-3">
+        {rows.map((r) => (
+          <li key={r.key}>
+            <div className="mb-1 flex items-baseline justify-between gap-3 text-[13px]">
+              <span className="truncate text-ink">{countryLabel(r.key)}</span>
+              <span className="shrink-0" style={{ fontVariantNumeric: "tabular-nums" }}>
+                <Amount value={r.valueEur} decimals={0} className="mr-2 text-muted" />
+                <span className="font-semibold text-ink">{pct(r.weight)}</span>
+              </span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-surface-2">
+              <div
+                className="h-2 rounded-full"
+                style={{ width: `${(r.weight / max) * 100}%`, background: r.key === "funds" || r.key === "unknown" ? "var(--muted)" : "var(--accent)" }}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-xs text-muted">Van je effecten. ETF&apos;s spreiden zelf over veel landen en staan daarom apart.</p>
     </div>
   )
 }

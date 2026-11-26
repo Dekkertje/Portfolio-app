@@ -39,6 +39,11 @@ export type Composition = {
   bySector: { key: string; valueEur: number; weight: number }[]
   /** Welk deel van de effectenwaarde een bekende sector heeft (0–1) */
   sectorCoverage: number
+  /**
+   * Aandelen per land (Engelse landnaam van Yahoo), als aandeel van de effectenwaarde.
+   * ETF's/fondsen hebben geen landenverdeling: die staan samen onder key "funds".
+   */
+  byCountry: { key: string; valueEur: number; weight: number }[]
   benchmark: Benchmark | null
 }
 
@@ -261,6 +266,7 @@ export function buildComposition(
 ): Composition {
   const kinds = new Map<string, number>()
   const sectors = new Map<string, number>(SECTOR_KEYS.map((k) => [k, 0]))
+  const countries = new Map<string, number>()
   let securities = 0
   let known = 0
 
@@ -269,6 +275,8 @@ export function buildComposition(
     const kind = inst?.kind === "stock" || inst?.kind === "etf" || inst?.kind === "fund" || inst?.kind === "crypto" ? inst.kind : "other"
     kinds.set(kind, (kinds.get(kind) ?? 0) + p.valueEur)
     securities += p.valueEur
+    const countryKey = kind === "etf" || kind === "fund" ? "funds" : (inst?.country ?? "unknown")
+    countries.set(countryKey, (countries.get(countryKey) ?? 0) + p.valueEur)
 
     const weights = inst?.sectorWeights
     const total = weights ? Object.values(weights).reduce((s, w) => s + w, 0) : 0
@@ -293,6 +301,9 @@ export function buildComposition(
       .map(([key, valueEur]) => ({ key, valueEur: round2(valueEur), weight: known > 0 ? valueEur / known : 0 }))
       .sort((a, b) => b.weight - a.weight),
     sectorCoverage: securities > 0 ? known / securities : 0,
+    byCountry: [...countries.entries()]
+      .map(([key, valueEur]) => ({ key, valueEur: round2(valueEur), weight: securities > 0 ? valueEur / securities : 0 }))
+      .sort((a, b) => b.weight - a.weight),
     benchmark,
   }
 }
