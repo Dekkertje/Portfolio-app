@@ -24,6 +24,7 @@ export default function LoginPage() {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) return router.replace("/overzicht")
       if (oauthError) setError(oauthError === "no_token" ? "Inloggen met Google is niet gelukt. Probeer het opnieuw." : authError(oauthError))
+      if (params.get("verwijderd")) setNotice("Je account en al je gegevens zijn verwijderd.")
       setChecking(false)
     })
   }, [router])

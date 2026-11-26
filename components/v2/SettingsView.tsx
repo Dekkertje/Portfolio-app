@@ -3,12 +3,13 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
-import { Camera, Check, ChevronRight, Download, Loader2, LogOut, Upload } from "lucide-react"
+import { Camera, Check, ChevronRight, Download, Loader2, LogOut, Trash2, Upload } from "lucide-react"
 import { usePrivacy } from "@/contexts/PrivacyContext"
 import { useTheme } from "@/contexts/ThemeContext"
 import { authFetch, supabase } from "@/lib/supabase/client"
 import type { TransactionsResponse } from "@/app/api/v2/transactions/route"
 import { InstallCard } from "./InstallApp"
+import { Sheet } from "./Sheet"
 import { Card, Initials, SectionTitle, Segmented } from "./ui"
 
 type Profile = { id: string; email: string; fullName: string; avatarUrl: string | null; provider: string }
@@ -302,6 +303,7 @@ function DataCard() {
 
 function AccountCard() {
   const router = useRouter()
+  const [deleting, setDeleting] = useState(false)
   return (
     <Card className="p-4 sm:p-6">
       <SectionTitle>Account</SectionTitle>
@@ -310,16 +312,77 @@ function AccountCard() {
           await supabase.auth.signOut()
           router.replace("/login")
         }}
-        className="flex w-full items-center gap-3 py-2 text-left text-[14px] text-down"
+        className="flex w-full items-center gap-3 py-2 text-left text-[14px] text-ink"
       >
-        <LogOut size={18} />
+        <LogOut size={18} className="text-ink-2" />
         Uitloggen
       </button>
+      <button onClick={() => setDeleting(true)} className="flex w-full items-center gap-3 border-t border-line py-3 text-left text-[14px] text-down">
+        <Trash2 size={18} />
+        Account verwijderen
+      </button>
+      {deleting && <DeleteAccountSheet onClose={() => setDeleting(false)} />}
       <p className="mt-3 text-[12px] text-muted">
         <Link href="/privacy" className="hover:text-ink">Privacy</Link>
         <span className="mx-2">·</span>
         <Link href="/voorwaarden" className="hover:text-ink">Voorwaarden</Link>
       </p>
     </Card>
+  )
+}
+
+function DeleteAccountSheet({ onClose }: { onClose: () => void }) {
+  const router = useRouter()
+  const [text, setText] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function remove() {
+    setBusy(true)
+    setError(null)
+    const res = await authFetch("/api/v2/account", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: "VERWIJDER" }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      setError(json.error ?? "Verwijderen mislukt")
+      setBusy(false)
+      return
+    }
+    await supabase.auth.signOut().catch(() => {})
+    router.replace("/login?verwijderd=1")
+  }
+
+  return (
+    <Sheet title="Account verwijderen" onClose={onClose}>
+      <div className="flex flex-col gap-4 px-3 pb-4">
+        <p className="text-[14px] text-ink-2">
+          Dit verwijdert je account en al je gegevens: transacties, imports, notificatieregels, volglijst, profiel en foto. Dit kan niet ongedaan worden gemaakt.
+        </p>
+        <p className="text-[13px] text-ink-2">Wil je je transacties bewaren? Exporteer ze dan eerst als CSV bij Gegevens.</p>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[13px] font-medium text-ink-2">
+            Typ <b className="text-ink">VERWIJDER</b> om te bevestigen
+          </span>
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            autoCapitalize="characters"
+            className="h-12 rounded-2xl bg-surface-2 px-4 text-[15px] text-ink outline-none focus:ring-2 focus:ring-down"
+          />
+        </label>
+        {error && <p className="rounded-2xl bg-down-wash px-3 py-2 text-[13px] text-down">{error}</p>}
+        <button
+          onClick={remove}
+          disabled={text.trim() !== "VERWIJDER" || busy}
+          className="flex h-12 items-center justify-center gap-2 rounded-full bg-down text-[15px] font-medium text-white disabled:opacity-40"
+        >
+          {busy && <Loader2 size={18} className="animate-spin" />}
+          Definitief verwijderen
+        </button>
+      </div>
+    </Sheet>
   )
 }
