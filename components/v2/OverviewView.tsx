@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { ChevronRight, RefreshCw, Upload } from "lucide-react"
+import { AccountStatementTip } from "./AccountStatementTip"
 import { Allocation } from "./Allocation"
 import { Composition } from "./Composition"
 import { InstallBanner } from "./InstallApp"
@@ -46,6 +47,7 @@ export function OverviewView({ data, empty, error, loading, refreshing, refresh 
       {data && (
         <div className="flex flex-col gap-5">
           <InstallBanner />
+          {!data.tracksCash && data.positions.length > 0 && <AccountStatementTip />}
           <Hero data={data} />
 
           <Stats data={data} />
