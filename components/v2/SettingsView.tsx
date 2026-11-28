@@ -3,12 +3,13 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
-import { Camera, Check, ChevronRight, Download, Loader2, LogOut, Trash2, Upload } from "lucide-react"
+import { Camera, Check, ChevronRight, Compass, Download, Loader2, LogOut, Trash2, Upload } from "lucide-react"
 import { usePrivacy } from "@/contexts/PrivacyContext"
 import { useTheme } from "@/contexts/ThemeContext"
 import { authFetch, supabase } from "@/lib/supabase/client"
 import type { TransactionsResponse } from "@/app/api/v2/transactions/route"
 import { InstallCard } from "./InstallApp"
+import { startOnboarding } from "./Onboarding"
 import { Sheet } from "./Sheet"
 import { Card, Initials, SectionTitle, Segmented } from "./ui"
 
@@ -252,6 +253,14 @@ function DisplayCard() {
           <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${privacyMode ? "left-[22px]" : "left-0.5"}`} />
         </button>
       </div>
+      <button onClick={startOnboarding} className="-mx-1 flex w-[calc(100%+0.5rem)] items-center gap-3 rounded-2xl border-t border-line px-1 py-3 text-left hover:bg-surface-2">
+        <Compass size={18} className="shrink-0 text-accent" />
+        <span className="flex-1">
+          <span className="block text-[14px] text-ink">Rondleiding bekijken</span>
+          <span className="block text-[12px] text-muted">Loop nog eens door wat de app allemaal kan</span>
+        </span>
+        <ChevronRight size={16} className="text-muted" />
+      </button>
     </Card>
   )
 }

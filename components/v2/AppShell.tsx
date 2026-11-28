@@ -22,6 +22,7 @@ import {
 import { usePrivacy } from "@/contexts/PrivacyContext"
 import { useTheme } from "@/contexts/ThemeContext"
 import { supabase } from "@/lib/supabase/client"
+import { Onboarding } from "./Onboarding"
 import { Sheet } from "./Sheet"
 
 type NavItem = { href: string; label: string; icon: React.ElementType }
@@ -104,6 +105,7 @@ export function AppShell({ children, requireAuth = true }: { children: React.Rea
       </nav>
 
       {moreOpen && <MoreSheet onClose={() => setMoreOpen(false)} pathname={pathname} />}
+      {requireAuth && <Onboarding />}
     </div>
   )
 }

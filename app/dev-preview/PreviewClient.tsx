@@ -16,6 +16,7 @@ import { ReturnChart } from "@/components/v2/ReturnChart"
 import { Card } from "@/components/v2/ui"
 import { YearsView } from "@/components/v2/YearsView"
 import { AddTransactionSheet } from "@/components/v2/AddTransaction"
+import { Onboarding } from "@/components/v2/Onboarding"
 
 const fakeApi = {
   preview: async () => {
@@ -60,7 +61,9 @@ export function PreviewClient({
   const base = { loading: false, error: null, empty: false }
   return (
     <AppShell requireAuth={false}>
-      {page === "toevoegen" ? (
+      {page.startsWith("rondleiding") ? (
+        <Onboarding preview={{ step: Number(page.split("-")[1] ?? 0), hasData: false }} />
+      ) : page === "toevoegen" ? (
         <AddTransactionSheet onClose={() => {}} onSaved={() => {}} />
       ) : page === "jaaroverzicht" ? (
         <YearsView data={data} loading={false} error={null} />
